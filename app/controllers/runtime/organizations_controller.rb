@@ -4,7 +4,13 @@ require 'queries/organization_user_roles_fetcher'
 module VCAP::CloudController
   class OrganizationsController < RestController::ModelController
     def self.dependencies
-      [:username_and_roles_populating_collection_renderer, :username_lookup_uaa_client, :services_event_repository]
+      [
+        :username_and_roles_populating_collection_renderer,
+        :username_lookup_uaa_client,
+        :services_event_repository,
+        :user_event_repository,
+        :organization_event_repository
+      ]
     end
 
     def inject_dependencies(dependencies)
@@ -12,6 +18,8 @@ module VCAP::CloudController
       @user_roles_collection_renderer = dependencies.fetch(:username_and_roles_populating_collection_renderer)
       @username_lookup_uaa_client = dependencies.fetch(:username_lookup_uaa_client)
       @services_event_repository = dependencies.fetch(:services_event_repository)
+      @user_event_repository = dependencies.fetch(:user_event_repository)
+      @organization_event_repository = dependencies.fetch(:organization_event_repository)
     end
 
     define_attributes do
@@ -115,6 +123,7 @@ module VCAP::CloudController
     [:user, :manager, :billing_manager, :auditor].each do |role|
       plural_role = role.to_s.pluralize
 
+      put "/v2/organizations/:guid/#{plural_role}/:user_id", "add_#{role}_by_user_id".to_sym
       put "/v2/organizations/:guid/#{plural_role}", "add_#{role}_by_username".to_sym
 
       define_method("add_#{role}_by_username") do |guid|
@@ -131,18 +140,18 @@ module VCAP::CloudController
         end
         raise VCAP::Errors::ApiError.new_from_details('UserNotFound', username) unless user_id
 
-        user = User.where(guid: user_id).first || User.create(guid: user_id)
+        add_role(guid, role, user_id, username)
+      end
 
-        org = find_guid_and_validate_access(:update, guid)
-        org.send("add_#{role}", user)
-
-        [HTTP::CREATED, object_renderer.render_json(self.class, org, @opts)]
+      define_method("add_#{role}_by_user_id") do |guid, user_id|
+        add_role(guid, role, user_id, '')
       end
     end
 
     [:user, :manager, :billing_manager, :auditor].each do |role|
       plural_role = role.to_s.pluralize
 
+      delete "/v2/organizations/:guid/#{plural_role}/:user_id", "remove_#{role}_by_user_id".to_sym
       delete "/v2/organizations/:guid/#{plural_role}", "remove_#{role}_by_username".to_sym
 
       define_method("remove_#{role}_by_username") do |guid|
@@ -166,7 +175,34 @@ module VCAP::CloudController
         org = find_guid_and_validate_access(:update, guid)
         org.send("remove_#{role}", user)
 
+        @user_event_repository.record_organization_role_remove(
+          org,
+          user,
+          role,
+          SecurityContext.current_user,
+          SecurityContext.current_user_email,
+          request_attrs
+        )
+
         [HTTP::NO_CONTENT]
+      end
+
+      define_method("remove_#{role}_by_user_id") do |guid, user_id|
+        response = remove_related(guid, "#{role}s".to_sym, user_id, Organization)
+
+        user = User.first(guid: user_id)
+        user.username = '' unless user.username
+
+        @user_event_repository.record_organization_role_remove(
+          Organization.first(guid: guid),
+          user,
+          role.to_s,
+          SecurityContext.current_user,
+          SecurityContext.current_user_email,
+          {}
+        )
+
+        response
       end
     end
 
@@ -180,19 +216,24 @@ module VCAP::CloudController
 
       delete_action = OrganizationDelete.new(SpaceDelete.new(current_user.guid, current_user_email, @services_event_repository))
       deletion_job = VCAP::CloudController::Jobs::DeleteActionJob.new(Organization, guid, delete_action)
-      enqueue_deletion_job(deletion_job)
+      response = enqueue_deletion_job(deletion_job)
+
+      @organization_event_repository.record_organization_delete_request(org, SecurityContext.current_user, SecurityContext.current_user_email, request_attrs)
+
+      response
     end
 
-    def remove_related(guid, name, other_guid)
+    def remove_related(guid, name, other_guid, find_model=model)
       model.db.transaction do
         if recursive_delete? && name.to_s.eql?('users')
-          org = find_guid_and_validate_access(:update, guid)
+          org = find_guid(guid, model)
+          validate_access(:can_remove_related_object, org, { relation: name, related_guid: other_guid })
           user = User.find(guid: other_guid)
 
           org.remove_user_recursive(user)
         end
 
-        super(guid, name, other_guid)
+        super(guid, name, other_guid, find_model)
       end
     end
 
@@ -217,10 +258,43 @@ module VCAP::CloudController
 
     private
 
+    def add_role(guid, role, user_id, username)
+      user = User.first(guid: user_id) || User.create(guid: user_id)
+
+      user.username = username
+
+      org = find_guid_and_validate_access(:update, guid)
+      org.send("add_#{role}", user)
+
+      @user_event_repository.record_organization_role_add(org, user, role, SecurityContext.current_user, SecurityContext.current_user_email, request_attrs)
+
+      [HTTP::CREATED, object_renderer.render_json(self.class, org, @opts)]
+    end
+
+    def remove_role(org, role, user_id, username)
+      user = User.first(guid: user_id)
+      raise VCAP::Errors::ApiError.new_from_details('InvalidRelation', "User with guid #{user_id} not found") unless user
+      user.username = username
+
+      org.send("remove_#{role}", user)
+
+      @user_event_repository.record_organization_role_remove(org, user, role, SecurityContext.current_user, SecurityContext.current_user_email, request_attrs)
+    end
+
+    def user_guid_parameter
+      @opts[:q][0].split(':')[1] if @opts[:q]
+    end
+
     def after_create(organization)
+      @organization_event_repository.record_organization_create(organization, SecurityContext.current_user, SecurityContext.current_user_email, request_attrs)
       return if SecurityContext.admin?
       organization.add_user(user)
       organization.add_manager(user)
+    end
+
+    def after_update(organization)
+      @organization_event_repository.record_organization_update(organization, SecurityContext.current_user, SecurityContext.current_user_email, request_attrs)
+      super(organization)
     end
   end
 end

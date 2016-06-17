@@ -82,6 +82,15 @@ resource 'Spaces', type: [:api, :legacy_api] do
 
   describe 'Nested endpoints' do
     include_context 'guid_parameter'
+    let(:user) { VCAP::CloudController::User.make }
+
+    before do
+      VCAP::CloudController::SecurityContext.set(user, 'valid_token')
+    end
+
+    after do
+      VCAP::CloudController::SecurityContext.clear
+    end
 
     describe 'Routes' do
       before do

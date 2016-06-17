@@ -37,7 +37,7 @@ module VCAP::CloudController
         app_bits_packer_job.perform
         [HTTP::CREATED, '{}']
       end
-    rescue VCAP::CloudController::Errors::ApiError => e
+    rescue VCAP::Errors::ApiError => e
       if e.name == 'AppBitsUploadInvalid' || e.name == 'AppPackageInvalid' || e.name == 'AppResourcesFileModeInvalid' || e.name == 'AppResourcesFilePathInvalid'
         app.mark_as_failed_to_stage
       end

@@ -42,7 +42,54 @@ resource 'Events', type: [:api, :legacy_api] do
     audit.route.create
     audit.route.update
     audit.route.delete-request
-  ).freeze
+    audit.app.droplet_mapped
+    audit.app.map-route
+    audit.app.unmap-route
+    audit.app.restage
+    audit.app.copy-bits
+    audit.app.package.create
+    audit.app.package.upload
+    audit.app.package.delete
+    audit.app.package.download
+    audit.space.role.add
+    audit.space.role.remove
+  ).sort.freeze
+
+  EXPERIMENTAL_EVENT_TYPES = %w(
+    audit.app.droplet.create
+    audit.app.droplet.delete
+    audit.app.process.crash
+    audit.app.process.create
+    audit.app.process.delete
+    audit.app.process.scale
+    audit.app.process.terminate_instance
+    audit.app.process.update
+    audit.app.droplet.download
+    audit.app.task.create
+    audit.app.task.cancel
+  ).sort.freeze
+
+  ACTEE_TYPES = [
+    'app',
+    'route',
+    'service_plan_visibility',
+    'service_broker',
+    'service',
+    'service_plan',
+    'service_dashboard_client',
+    'service_instance',
+    'user_provided_service_instance',
+    'service_binding',
+    'service_key',
+    'space'
+  ].sort.freeze
+
+  ACTOR_TYPES = %w(
+    user
+    system
+    service_broker
+  ).sort.freeze
+
   let(:admin_auth_header) { admin_headers['HTTP_AUTHORIZATION'] }
   authenticated_request
 
@@ -75,6 +122,7 @@ resource 'Events', type: [:api, :legacy_api] do
 
     let(:test_app) { VCAP::CloudController::App.make }
     let(:test_v3app) { VCAP::CloudController::AppModel.make }
+    let(:test_assignee) { VCAP::CloudController::User.make }
     let(:test_user) { VCAP::CloudController::User.make }
     let(:test_user_email) { 'user@example.com' }
     let(:test_space) { VCAP::CloudController::Space.make }
@@ -136,6 +184,10 @@ resource 'Events', type: [:api, :legacy_api] do
 
     let(:space_event_repository) do
       VCAP::CloudController::Repositories::Runtime::SpaceEventRepository.new
+    end
+
+    let(:user_event_repository) do
+      VCAP::CloudController::Repositories::UserEventRepository.new
     end
 
     let(:route_event_repository) do
@@ -340,6 +392,40 @@ resource 'Events', type: [:api, :legacy_api] do
                                actee_name: test_space.name,
                                space_guid: test_space.guid,
                                metadata: { 'request' => { 'recursive' => true } }
+    end
+
+    example 'List Associate Role Space Events' do
+      user_event_repository.record_space_role_add(test_space, test_assignee, 'auditor', test_user, test_user_email)
+
+      client.get '/v2/events?q=type:audit.user.space_auditor_add', {}, headers
+      expect(status).to eq(200)
+      standard_entity_response parsed_response['resources'][0], :event, expected_values: {
+        actor_type: 'user',
+        actor:      test_user.guid,
+        actor_name: test_user_email,
+        actee_type: 'user',
+        actee:      test_assignee.guid,
+        actee_name: '',
+        space_guid: test_space.guid,
+        metadata:   { 'request' => {} }
+      }
+    end
+
+    example 'List Remove Role Space Events' do
+      user_event_repository.record_space_role_remove(test_space, test_assignee, 'auditor', test_user, test_user_email)
+
+      client.get '/v2/events?q=type:audit.user.space_auditor_remove', {}, headers
+      expect(status).to eq(200)
+      standard_entity_response parsed_response['resources'][0], :event, expected_values: {
+        actor_type: 'user',
+        actor:      test_user.guid,
+        actor_name: test_user_email,
+        actee_type: 'user',
+        actee:      test_assignee.guid,
+        actee_name: '',
+        space_guid: test_space.guid,
+        metadata:   { 'request' => {} }
+      }
     end
 
     example 'List Route Create Events' do
