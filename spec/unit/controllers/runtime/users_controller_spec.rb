@@ -107,10 +107,168 @@ module VCAP::CloudController
       end
     end
 
+    describe 'assigning org roles' do
+      let(:space) { Space.make }
+      let(:org) { space.organization }
+      let(:user) { User.make }
+      let(:other_user) { User.make }
+
+      before do
+        allow_any_instance_of(UaaClient).to receive(:usernames_for_ids).and_return({ other_user.guid => other_user.username })
+      end
+
+      describe 'PUT /v2/users/:guid/audited_organizations/:org_guid' do
+        let(:event_type) { 'audit.user.organization_auditor_add' }
+
+        before do
+          set_current_user(user)
+          org.add_user(other_user)
+        end
+
+        context 'as an admin' do
+          before do
+            set_current_user_as_admin
+          end
+
+          it 'succeeds and creates an appropriate audit event' do
+            put "/v2/users/#{other_user.guid}/audited_organizations/#{org.guid}"
+            expect(last_response.status).to eq(201)
+
+            event = Event.find(type: event_type, actee: other_user.guid)
+            expect(event).not_to be_nil
+          end
+        end
+
+        context 'as an org user' do
+          before do
+            org.add_user(user)
+          end
+
+          it 'fails and does not create an audit event' do
+            put "/v2/users/#{other_user.guid}/audited_organizations/#{org.guid}"
+            expect(last_response.status).to eq(403)
+
+            event = Event.find(type: event_type, actee: other_user.guid)
+            expect(event).to be_nil
+          end
+        end
+      end
+
+      describe 'PUT /v2/users/:guid/managed_organizations/:org_guid' do
+        let(:event_type) { 'audit.user.organization_manager_add' }
+
+        before do
+          set_current_user(user)
+          org.add_user(other_user)
+        end
+
+        context 'as an admin' do
+          before do
+            set_current_user_as_admin
+          end
+
+          it 'succeeds and creates an appropriate audit event' do
+            put "/v2/users/#{other_user.guid}/managed_organizations/#{org.guid}"
+            expect(last_response.status).to eq(201)
+
+            event = Event.find(type: event_type, actee: other_user.guid)
+            expect(event).not_to be_nil
+          end
+        end
+
+        context 'as an org user' do
+          before do
+            org.add_user(user)
+          end
+
+          it 'fails and does not create an audit event' do
+            put "/v2/users/#{other_user.guid}/managed_organizations/#{org.guid}"
+            expect(last_response.status).to eq(403)
+
+            event = Event.find(type: event_type, actee: other_user.guid)
+            expect(event).to be_nil
+          end
+        end
+      end
+
+      describe 'PUT /v2/users/:guid/billing_managed_organizations/:org_guid' do
+        let(:event_type) { 'audit.user.organization_billing_manager_add' }
+
+        before do
+          set_current_user(user)
+          org.add_user(other_user)
+        end
+
+        context 'as an admin' do
+          before do
+            set_current_user_as_admin
+          end
+
+          it 'succeeds and creates an appropriate audit event' do
+            put "/v2/users/#{other_user.guid}/billing_managed_organizations/#{org.guid}"
+            expect(last_response.status).to eq(201)
+
+            event = Event.find(type: event_type, actee: other_user.guid)
+            expect(event).not_to be_nil
+          end
+        end
+
+        context 'as an org user' do
+          before do
+            org.add_user(user)
+          end
+
+          it 'fails and does not create an audit event' do
+            put "/v2/users/#{other_user.guid}/billing_managed_organizations/#{org.guid}"
+            expect(last_response.status).to eq(403)
+
+            event = Event.find(type: event_type, actee: other_user.guid)
+            expect(event).to be_nil
+          end
+        end
+      end
+
+      describe 'PUT /v2/users/:guid/organizations/:org_guid' do
+        let(:event_type) { 'audit.user.organization_user_add' }
+
+        before do
+          set_current_user(user)
+        end
+
+        context 'as an admin' do
+          before do
+            set_current_user_as_admin
+          end
+
+          it 'succeeds and creates an appropriate audit event' do
+            put "/v2/users/#{other_user.guid}/organizations/#{org.guid}"
+            expect(last_response.status).to eq(201)
+
+            event = Event.find(type: event_type, actee: other_user.guid)
+            expect(event).not_to be_nil
+          end
+        end
+
+        context 'as an org user' do
+          before do
+            org.add_user(user)
+          end
+          it 'fails and does not create an audit event' do
+            put "/v2/users/#{other_user.guid}/organizations/#{org.guid}"
+            expect(last_response.status).to eq(403)
+
+            event = Event.find(type: event_type, actee: other_user.guid)
+            expect(event).to be_nil
+          end
+        end
+      end
+    end
+
     describe 'DELETE /v2/users/:guid/audited_organizations/:org_guid' do
       let(:space) { Space.make }
       let(:org) { space.organization }
       let(:user) { User.make }
+      let(:event_type) { 'audit.user.organization_auditor_remove' }
 
       before do
         set_current_user(user)
@@ -121,6 +279,12 @@ module VCAP::CloudController
         it 'succeeds' do
           delete "/v2/users/#{user.guid}/audited_organizations/#{org.guid}"
           expect(last_response.status).to eq(204)
+        end
+
+        it 'creates an appropriate event' do
+          delete "/v2/users/#{user.guid}/audited_organizations/#{org.guid}"
+          event = Event.find(type: event_type, actee: user.guid)
+          expect(event).not_to be_nil
         end
       end
 
@@ -151,6 +315,12 @@ module VCAP::CloudController
             delete "/v2/users/#{other_user.guid}/audited_organizations/#{org.guid}"
             expect(last_response.status).to eq(204)
           end
+
+          it 'creates an appropriate event' do
+            delete "/v2/users/#{other_user.guid}/audited_organizations/#{org.guid}"
+            event = Event.find(type: event_type, actee: other_user.guid)
+            expect(event).not_to be_nil
+          end
         end
       end
     end
@@ -159,6 +329,7 @@ module VCAP::CloudController
       let(:space) { Space.make }
       let(:org) { space.organization }
       let(:user) { User.make }
+      let(:event_type) { 'audit.user.space_auditor_remove' }
 
       before do
         set_current_user(user)
@@ -171,6 +342,12 @@ module VCAP::CloudController
         it 'succeeds' do
           delete "/v2/users/#{user.guid}/audited_spaces/#{space.guid}"
           expect(last_response.status).to eq(204)
+        end
+
+        it 'creates an appropriate event' do
+          delete "/v2/users/#{user.guid}/audited_spaces/#{space.guid}"
+          event = Event.find(type: event_type, actee: user.guid)
+          expect(event).not_to be_nil
         end
       end
 
@@ -206,6 +383,12 @@ module VCAP::CloudController
             delete "/v2/users/#{other_user.guid}/audited_spaces/#{space.guid}"
             expect(last_response.status).to eq(204)
           end
+
+          it 'creates an appropriate event' do
+            delete "/v2/users/#{other_user.guid}/audited_spaces/#{space.guid}"
+            event = Event.find(type: event_type, actee: other_user.guid)
+            expect(event).not_to be_nil
+          end
         end
       end
     end
@@ -215,6 +398,7 @@ module VCAP::CloudController
       let(:user) { User.make }
       let(:billing_manager) { User.make }
       let(:org) { space.organization }
+      let(:event_type) { 'audit.user.organization_billing_manager_remove' }
 
       before do
         org.add_user user
@@ -232,6 +416,12 @@ module VCAP::CloudController
           it 'is allowed' do
             delete "/v2/users/#{billing_manager.guid}/billing_managed_organizations/#{org.guid}"
             expect(last_response.status).to eq(204)
+          end
+
+          it 'creates an appropriate event' do
+            delete "/v2/users/#{billing_manager.guid}/billing_managed_organizations/#{org.guid}"
+            event = Event.find(type: event_type, actee: billing_manager.guid)
+            expect(event).not_to be_nil
           end
         end
 
@@ -260,6 +450,12 @@ module VCAP::CloudController
             delete "/v2/users/#{billing_manager.guid}/billing_managed_organizations/#{org.guid}"
             expect(last_response.status).to eq(204)
           end
+
+          it 'creates an appropriate event' do
+            delete "/v2/users/#{billing_manager.guid}/billing_managed_organizations/#{org.guid}"
+            event = Event.find(type: event_type, actee: billing_manager.guid)
+            expect(event).not_to be_nil
+          end
         end
 
         describe 'removing other billing manager' do
@@ -277,6 +473,7 @@ module VCAP::CloudController
       let(:space) { Space.make }
       let(:org) { space.organization }
       let(:org_manager) { User.make }
+      let(:event_type) { 'audit.user.organization_manager_remove' }
 
       before do
         org.add_user org_manager
@@ -295,6 +492,12 @@ module VCAP::CloudController
           it 'is allowed' do
             delete "/v2/users/#{org_manager.guid}/managed_organizations/#{org.guid}"
             expect(last_response.status).to eq(204)
+          end
+
+          it 'creates an appropriate event' do
+            delete "/v2/users/#{org_manager.guid}/managed_organizations/#{org.guid}"
+            event = Event.find(type: event_type, actee: org_manager.guid)
+            expect(event).not_to be_nil
           end
         end
 
@@ -319,6 +522,12 @@ module VCAP::CloudController
             delete "/v2/users/#{org_manager.guid}/managed_organizations/#{org.guid}"
             expect(last_response.status).to eq(204)
           end
+
+          it 'creates an appropriate event' do
+            delete "/v2/users/#{org_manager.guid}/managed_organizations/#{org.guid}"
+            event = Event.find(type: event_type, actee: org_manager.guid)
+            expect(event).not_to be_nil
+          end
         end
 
         context 'as a non-admin non-manager' do
@@ -341,6 +550,7 @@ module VCAP::CloudController
       let(:space) { Space.make }
       let(:org) { space.organization }
       let(:user) { User.make }
+      let(:event_type) { 'audit.user.organization_user_remove' }
 
       before do
         set_current_user(user)
@@ -373,10 +583,21 @@ module VCAP::CloudController
           org.add_manager(user)
         end
 
-        it 'succeeds removing itself if it is not the only manager' do
-          org.add_manager(User.make)
-          delete "/v2/users/#{user.guid}/organizations/#{org.guid}"
-          expect(last_response.status).to eq(204)
+        context 'when there are other managers' do
+          before do
+            org.add_manager(User.make)
+          end
+
+          it 'can remove itself' do
+            delete "/v2/users/#{user.guid}/organizations/#{org.guid}"
+            expect(last_response.status).to eq(204)
+          end
+
+          it 'creates an appropriate event' do
+            delete "/v2/users/#{user.guid}/organizations/#{org.guid}"
+            event = Event.find(type: event_type, actee: user.guid)
+            expect(event).not_to be_nil
+          end
         end
 
         it 'cannot remove itself if it is the only manager' do
@@ -390,10 +611,21 @@ module VCAP::CloudController
           org.add_billing_manager(user)
         end
 
-        it 'can remove itself if it is not the only billing manager' do
-          org.add_billing_manager(User.make)
-          delete "/v2/users/#{user.guid}/organizations/#{org.guid}"
-          expect(last_response.status).to eq(204)
+        context 'when there are other billing managers' do
+          before do
+            org.add_billing_manager(User.make)
+          end
+
+          it 'can remove itself' do
+            delete "/v2/users/#{user.guid}/organizations/#{org.guid}"
+            expect(last_response.status).to eq(204)
+          end
+
+          it 'creates an appropriate event' do
+            delete "/v2/users/#{user.guid}/organizations/#{org.guid}"
+            event = Event.find(type: event_type, actee: user.guid)
+            expect(event).not_to be_nil
+          end
         end
 
         it 'cannot remove itself if it is the only billing manager' do
@@ -415,6 +647,12 @@ module VCAP::CloudController
             delete "/v2/users/#{other_user.guid}/organizations/#{org.guid}"
             expect(last_response.status).to eq(204)
           end
+
+          it 'creates an appropriate event' do
+            delete "/v2/users/#{other_user.guid}/organizations/#{org.guid}"
+            event = Event.find(type: event_type, actee: other_user.guid)
+            expect(event).not_to be_nil
+          end
         end
       end
     end
@@ -424,6 +662,7 @@ module VCAP::CloudController
       let(:org) { space.organization }
       let(:user) { User.make }
       let(:other_user) { User.make }
+      let(:event_type) { 'audit.user.space_manager_remove' }
 
       before do
         set_current_user(user)
@@ -445,12 +684,24 @@ module VCAP::CloudController
             delete "/v2/users/#{other_user.guid}/managed_spaces/#{space.guid}"
             expect(last_response.status).to eq(204)
           end
+
+          it 'creates an appropriate event' do
+            delete "/v2/users/#{other_user.guid}/managed_spaces/#{space.guid}"
+            event = Event.find(type: event_type, actee: other_user.guid)
+            expect(event).not_to be_nil
+          end
         end
 
         context 'when acting on oneself' do
           it 'succeeds' do
             delete "/v2/users/#{user.guid}/managed_spaces/#{space.guid}"
             expect(last_response.status).to eq(204)
+          end
+
+          it 'creates an appropriate event' do
+            delete "/v2/users/#{user.guid}/managed_spaces/#{space.guid}"
+            event = Event.find(type: event_type, actee: user.guid)
+            expect(event).not_to be_nil
           end
         end
       end
@@ -469,6 +720,7 @@ module VCAP::CloudController
       let(:space) { Space.make }
       let(:org) { space.organization }
       let(:user) { User.make }
+      let(:event_type) { 'audit.user.space_developer_remove' }
 
       before do
         set_current_user(user)
@@ -481,6 +733,12 @@ module VCAP::CloudController
           delete "/v2/users/#{user.guid}/spaces/#{space.guid}"
           expect(last_response.status).to eq(204)
           expect(Space.all).to include(space)
+        end
+
+        it 'creates an appropriate event' do
+          delete "/v2/users/#{user.guid}/spaces/#{space.guid}"
+          event = Event.find(type: event_type, actee: user.guid)
+          expect(event).not_to be_nil
         end
       end
 
@@ -513,6 +771,205 @@ module VCAP::CloudController
           it 'succeeds' do
             delete "/v2/users/#{other_user.guid}/spaces/#{space.guid}"
             expect(last_response.status).to eq(204)
+          end
+
+          it 'creates an appropriate event' do
+            delete "/v2/users/#{other_user.guid}/spaces/#{space.guid}"
+            event = Event.find(type: event_type, actee: other_user.guid)
+            expect(event).not_to be_nil
+          end
+        end
+      end
+    end
+
+    describe 'assigning space roles' do
+      let(:other_user) { User.make }
+      let(:space) { Space.make }
+      let(:org) { space.organization }
+      let(:user) { User.make }
+
+      before do
+        allow_any_instance_of(UaaClient).to receive(:usernames_for_ids).and_return({other_user.guid => other_user.username})
+      end
+
+      describe 'PUT /v2/users/:guid/audited_spaces/:space_guid' do
+        let(:event_type) { 'audit.user.space_auditor_add' }
+
+        let(:expected_response) {
+          {
+            'metadata' => {
+              'guid' => other_user.guid,
+              'url' => "/v2/users/#{other_user.guid}",
+              'created_at' => iso8601,
+              'updated_at' => nil
+            },
+            'entity' => {
+              'admin' => false,
+              'active' => false,
+              'default_space_guid' => nil,
+              'spaces_url' => "/v2/users/#{other_user.guid}/spaces",
+              'organizations_url' => "/v2/users/#{other_user.guid}/organizations",
+              'managed_organizations_url' => "/v2/users/#{other_user.guid}/managed_organizations",
+              'billing_managed_organizations_url' => "/v2/users/#{other_user.guid}/billing_managed_organizations",
+              'audited_organizations_url' => "/v2/users/#{other_user.guid}/audited_organizations",
+              'managed_spaces_url' => "/v2/users/#{other_user.guid}/managed_spaces",
+              'audited_spaces_url' => "/v2/users/#{other_user.guid}/audited_spaces"
+            }
+          }
+        }
+
+        before do
+          set_current_user(user)
+          org.add_user(user)
+          org.add_manager(user)
+          space.add_manager(user)
+          org.add_user(other_user)
+        end
+
+        it 'fails with 403' do
+          put "/v2/users/#{other_user.guid}/audited_spaces/#{space.guid}"
+          expect(last_response.status).to eq(403)
+          expect(decoded_response['code']).to eq(10003)
+        end
+
+        context 'as an admin' do
+          before do
+            set_current_user_as_admin
+          end
+
+          it 'succeeds' do
+            put "/v2/users/#{other_user.guid}/audited_spaces/#{space.guid}"
+            expect(last_response.status).to eq(201)
+            expect(space.auditors).to include(other_user)
+            expect(decoded_response).to be_a_response_like(expected_response)
+          end
+
+          it 'creates an appropriate event' do
+            put "/v2/users/#{other_user.guid}/audited_spaces/#{space.guid}"
+            event = Event.find(type: event_type, actee: other_user.guid)
+            expect(event).not_to be_nil
+          end
+        end
+      end
+
+      describe 'PUT /v2/users/:guid/managed_spaces/:space_guid' do
+        let(:event_type) { 'audit.user.space_manager_add' }
+
+        let(:expected_response) {
+          {
+            'metadata' => {
+              'guid' => other_user.guid,
+              'url' => "/v2/users/#{other_user.guid}",
+              'created_at' => iso8601,
+              'updated_at' => nil
+            },
+            'entity' => {
+              'admin' => false,
+              'active' => false,
+              'default_space_guid' => nil,
+              'spaces_url' => "/v2/users/#{other_user.guid}/spaces",
+              'organizations_url' => "/v2/users/#{other_user.guid}/organizations",
+              'managed_organizations_url' => "/v2/users/#{other_user.guid}/managed_organizations",
+              'billing_managed_organizations_url' => "/v2/users/#{other_user.guid}/billing_managed_organizations",
+              'audited_organizations_url' => "/v2/users/#{other_user.guid}/audited_organizations",
+              'managed_spaces_url' => "/v2/users/#{other_user.guid}/managed_spaces",
+              'audited_spaces_url' => "/v2/users/#{other_user.guid}/audited_spaces"
+            }
+          }
+        }
+
+        before do
+          set_current_user(user)
+          org.add_user(user)
+          org.add_manager(user)
+          space.add_manager(user)
+          org.add_user(other_user)
+        end
+
+        it 'fails with 403' do
+          put "/v2/users/#{other_user.guid}/managed_spaces/#{space.guid}"
+          expect(last_response.status).to eq(403)
+          expect(decoded_response['code']).to eq(10003)
+        end
+
+        context 'as an admin' do
+          before do
+            set_current_user_as_admin
+          end
+
+          it 'succeeds' do
+            put "/v2/users/#{other_user.guid}/managed_spaces/#{space.guid}"
+            expect(last_response.status).to eq(201)
+            space.reload
+            expect(space.managers).to include(other_user)
+            expect(decoded_response).to be_a_response_like(expected_response)
+          end
+
+          it 'creates an appropriate event' do
+            put "/v2/users/#{other_user.guid}/managed_spaces/#{space.guid}"
+            event = Event.find(type: event_type, actee: other_user.guid)
+            expect(event).not_to be_nil
+          end
+        end
+      end
+
+      describe 'PUT /v2/users/:guid/spaces/:space_guid' do
+        let(:event_type) { 'audit.user.space_developer_add' }
+
+        let(:expected_response) {
+          {
+            'metadata' => {
+              'guid' => other_user.guid,
+              'url' => "/v2/users/#{other_user.guid}",
+              'created_at' => iso8601,
+              'updated_at' => nil
+            },
+            'entity' => {
+              'admin' => false,
+              'active' => false,
+              'default_space_guid' => nil,
+              'spaces_url' => "/v2/users/#{other_user.guid}/spaces",
+              'organizations_url' => "/v2/users/#{other_user.guid}/organizations",
+              'managed_organizations_url' => "/v2/users/#{other_user.guid}/managed_organizations",
+              'billing_managed_organizations_url' => "/v2/users/#{other_user.guid}/billing_managed_organizations",
+              'audited_organizations_url' => "/v2/users/#{other_user.guid}/audited_organizations",
+              'managed_spaces_url' => "/v2/users/#{other_user.guid}/managed_spaces",
+              'audited_spaces_url' => "/v2/users/#{other_user.guid}/audited_spaces"
+            }
+          }
+        }
+
+        before do
+          set_current_user(user)
+          org.add_user(user)
+          org.add_manager(user)
+          space.add_manager(user)
+          org.add_user(other_user)
+        end
+
+        it 'fails with 403' do
+          put "/v2/users/#{other_user.guid}/spaces/#{space.guid}"
+          expect(last_response.status).to eq(403)
+          expect(decoded_response['code']).to eq(10003)
+        end
+
+        context 'as an admin' do
+          before do
+            set_current_user_as_admin
+          end
+
+          it 'succeeds' do
+            put "/v2/users/#{other_user.guid}/spaces/#{space.guid}"
+            expect(last_response.status).to eq(201)
+            space.reload
+            expect(space.developers).to include(other_user)
+            expect(decoded_response).to be_a_response_like(expected_response)
+          end
+
+          it 'creates an appropriate event' do
+            put "/v2/users/#{other_user.guid}/spaces/#{space.guid}"
+            event = Event.find(type: event_type, actee: other_user.guid)
+            expect(event).not_to be_nil
           end
         end
       end
