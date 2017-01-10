@@ -801,7 +801,7 @@ module VCAP::CloudController
               'guid' => other_user.guid,
               'url' => "/v2/users/#{other_user.guid}",
               'created_at' => iso8601,
-              'updated_at' => iso8601
+              'updated_at' => nil
             },
             'entity' => {
               'admin' => false,
@@ -861,7 +861,7 @@ module VCAP::CloudController
               'guid' => other_user.guid,
               'url' => "/v2/users/#{other_user.guid}",
               'created_at' => iso8601,
-              'updated_at' => iso8601
+              'updated_at' => nil
             },
             'entity' => {
               'admin' => false,
@@ -922,7 +922,7 @@ module VCAP::CloudController
               'guid' => other_user.guid,
               'url' => "/v2/users/#{other_user.guid}",
               'created_at' => iso8601,
-              'updated_at' => iso8601
+              'updated_at' => nil
             },
             'entity' => {
               'admin' => false,

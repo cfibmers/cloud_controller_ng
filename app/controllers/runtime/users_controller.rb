@@ -1,7 +1,8 @@
+
 module VCAP::CloudController
   class UsersController < RestController::ModelController
     def self.dependencies
-      [:username_populating_collection_renderer, :username_populating_object_renderer, :user_event_repository]
+      [:username_populating_collection_renderer, :user_event_repository]
     end
 
     define_attributes do
