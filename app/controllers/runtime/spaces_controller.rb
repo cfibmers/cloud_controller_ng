@@ -243,6 +243,18 @@ module VCAP::CloudController
 
     def after_create(space)
       @space_event_repository.record_space_create(space, SecurityContext.current_user, SecurityContext.current_user_email, request_attrs)
+
+      space.managers.each do |mgr|
+        @user_event_repository.record_space_role_add(space, mgr, 'manager', SecurityContext.current_user, SecurityContext.current_user_email, request_attrs)
+      end
+
+      space.auditors.each do |auditor|
+        @user_event_repository.record_space_role_add(space, auditor, 'auditor', SecurityContext.current_user, SecurityContext.current_user_email, request_attrs)
+      end
+
+      space.developers.each do |developer|
+        @user_event_repository.record_space_role_add(space, developer, 'developer', SecurityContext.current_user, SecurityContext.current_user_email, request_attrs)
+      end
     end
 
     def after_update(space)
