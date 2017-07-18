@@ -1,27 +1,15 @@
-require 'cloud_controller/blobstore/local_app_bits'
 require 'cloud_controller/blobstore/fingerprints_collection'
+require 'cloud_controller/packager/local_bits_packer'
 require 'shellwords'
 
-class AppBitsPackage
+class AppBitsPackage < CloudController::Packager::LocalBitsPacker
   class PackageNotFound < StandardError; end
   class ZipSizeExceeded < StandardError; end
   class InvalidZip < StandardError; end
 
   def create(app, uploaded_tmp_compressed_path, fingerprints_in_app_cache)
-    CloudController::Blobstore::LocalAppBits.from_compressed_bits(uploaded_tmp_compressed_path, tmp_dir) do |local_app_bits|
-      validate_size!(fingerprints_in_app_cache, local_app_bits)
-
-      global_app_bits_cache.cp_r_to_blobstore(local_app_bits.uncompressed_path)
-
-      fingerprints_in_app_cache.each do |local_destination, app_bit_sha, mode|
-        global_app_bits_cache.download_from_blobstore(app_bit_sha, File.join(local_app_bits.uncompressed_path, local_destination), mode: mode)
-      end
-
-      package = local_app_bits.create_package
-      package_blobstore.cp_to_blobstore(package.path, app.guid)
-      app.package_hash = Digester.new.digest_file(package)
-      app.save
-    end
+    app.package_hash = send_package_to_blobstore(app.guid, uploaded_tmp_compressed_path, fingerprints_in_app_cache)
+    app.save
   ensure
     FileUtils.rm_f(uploaded_tmp_compressed_path) if uploaded_tmp_compressed_path
   end
@@ -32,19 +20,27 @@ class AppBitsPackage
     package = VCAP::CloudController::PackageModel.find(guid: package_guid)
     raise PackageNotFound if package.nil?
 
+    uploaded_package_zip = package_path
+
     begin
       raise InvalidZip.new('The zip provided was not valid') unless valid_zip?(package_path)
       raise ZipSizeExceeded if max_package_size && package_size(package_path) > max_package_size
 
-      # by unpacking and repacking, we remove unneeded directory listings, which
-      # may contain directory permissions that cause problems during staging
-      CloudController::Blobstore::LocalAppBits.from_compressed_bits(package_path, tmp_dir) do |local_app_bits|
-        rezipped_package = local_app_bits.create_package
-        package_blobstore.cp_to_blobstore(rezipped_package.path, package_guid)
+      Dir.mktmpdir('local_bits_packer', tmp_dir) do |root_path|
+        app_package_zip = File.join(root_path, 'copied_app_package.zip')
+        app_packager = AppPackager.new(app_package_zip)
+
+        if package_zip_exists?(uploaded_package_zip)
+          FileUtils.cp(uploaded_package_zip, app_package_zip)
+        end
+
+        app_packager.fix_subdir_permissions
+
+        package_blobstore.cp_to_blobstore(app_package_zip, package_guid)
 
         package.db.transaction do
           package.lock!
-          package.package_hash = Digester.new.digest_path(rezipped_package)
+          package.package_hash = Digester.new.digest_path(app_package_zip)
           package.state = VCAP::CloudController::PackageModel::READY_STATE
           package.save
         end
@@ -81,16 +77,7 @@ class AppBitsPackage
     zip_info = `unzip -l #{Shellwords.escape(package_path)}`
     zip_info.split("\n").last.match(/^\s*(\d+)/)[1].to_i
   end
-
-  def validate_size!(fingerprints_in_app_cache, local_app_bits)
-    return unless max_package_size
-
-    total_size = local_app_bits.storage_size + fingerprints_in_app_cache.storage_size
-    if total_size > max_package_size
-      raise VCAP::Errors::ApiError.new_from_details('AppPackageInvalid', "Package may not be larger than #{max_package_size} bytes")
-    end
-  end
-
+  
   def tmp_dir
     @tmp_dir ||= VCAP::CloudController::Config.config[:directories][:tmpdir]
   end
