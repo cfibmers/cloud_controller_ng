@@ -40,7 +40,14 @@ module CloudController
           it 'sets up a cdn for the fog client' do
             allow(FogClient).to receive(:new).and_call_original
             ClientProvider.provide(options: options, directory_key: 'key')
-            expect(FogClient).to have_received(:new).with(anything, anything, an_instance_of(Cdn), anything, anything, anything)
+            expect(FogClient).to have_received(:new).with(
+              connection_config: anything,
+              directory_key: anything,
+              cdn: an_instance_of(Cdn),
+              root_dir: anything,
+              min_size: anything,
+              max_size: anything
+            )
           end
         end
 
