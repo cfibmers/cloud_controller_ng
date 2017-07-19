@@ -22,7 +22,7 @@ module CloudController
           cdn     = CloudController::Blobstore::Cdn.make(cdn_uri)
 
           client = FogClient.new(
-              connection_config: options.fetch(:fog_connection),
+            connection_config: options.fetch(:fog_connection),
             directory_key: directory_key,
             cdn: cdn,
             root_dir: root_dir,

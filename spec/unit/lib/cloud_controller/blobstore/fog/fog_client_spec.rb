@@ -20,7 +20,7 @@ module CloudController
       let(:min_size) { 20 }
       let(:max_size) { 50 }
       subject(:client) do
-        described_class.new(connection_config, directory_key)
+        described_class.new(connection_config: connection_config, directory_key: directory_key)
       end
 
       describe 'conforms to blobstore client interface' do
@@ -46,7 +46,7 @@ module CloudController
 
       context 'for a remote blobstore backed by a CDN' do
         subject(:client) do
-          described_class.new(connection_config, directory_key, cdn)
+          described_class.new(connection_config: connection_config, directory_key: directory_key, cdn: cdn)
         end
 
         let(:cdn) { double(:cdn) }
@@ -79,7 +79,7 @@ module CloudController
 
       context 'a local blobstore' do
         subject(:client) do
-          described_class.new({ provider: 'Local' }, directory_key)
+          described_class.new(connection_config: { provider: 'Local' }, directory_key: directory_key)
         end
 
         it 'is true if the provider is local' do
@@ -90,7 +90,7 @@ module CloudController
       context 'common behaviors' do
         let(:directory) { Fog::Storage.new(connection_config).directories.create(key: directory_key) }
         subject(:client) do
-          described_class.new(connection_config, directory_key)
+          described_class.new(connection_config: connection_config, directory_key: directory_key)
         end
 
         context 'with existing files' do
@@ -150,7 +150,14 @@ module CloudController
 
           context 'limit the file size' do
             let(:client) do
-              described_class.new(connection_config, directory_key, nil, nil, min_size, max_size)
+              described_class.new(
+                connection_config: connection_config,
+                directory_key: directory_key,
+                cdn: nil,
+                root_dir: nil,
+                min_size: min_size,
+                max_size: max_size
+              )
             end
 
             it 'does not copy files below the minimum size limit' do
@@ -280,7 +287,14 @@ module CloudController
 
           context 'limit the file size' do
             let(:client) do
-              described_class.new(connection_config, directory_key, nil, nil, min_size, max_size)
+              described_class.new(
+                connection_config: connection_config,
+                directory_key: directory_key,
+                cdn: nil,
+                root_dir: nil,
+                min_size: min_size,
+                max_size: max_size
+              )
             end
 
             it 'does not copy files below the minimum size limit' do
@@ -537,7 +551,12 @@ module CloudController
 
           context 'when a root dir is provided' do
             let(:client_with_root) do
-              described_class.new(connection_config, directory_key, nil, 'root-dir')
+              described_class.new(
+                connection_config: connection_config,
+                directory_key: directory_key,
+                cdn: nil,
+                root_dir: 'root-dir'
+              )
             end
 
             it 'only deletes files at the root' do
@@ -622,7 +641,12 @@ module CloudController
 
           context 'when a root dir is provided' do
             let(:client_with_root) do
-              described_class.new(connection_config, directory_key, nil, 'root-dir')
+              described_class.new(
+                connection_config: connection_config,
+                directory_key: directory_key,
+                cdn: nil,
+                root_dir: 'root-dir'
+              )
             end
 
             it 'only deletes files at the root' do
@@ -697,7 +721,11 @@ module CloudController
 
       context 'with root directory specified' do
         subject(:client) do
-          described_class.new(connection_config, directory_key, nil, 'my-root')
+          described_class.new(
+            connection_config: connection_config,
+            directory_key: directory_key,
+            cdn: nil,
+            root_dir: 'my-root')
         end
 
         it 'includes the directory in the partitioned key' do
@@ -735,7 +763,11 @@ module CloudController
           it 'correctly downloads byte streams' do
             uri    = "http://localhost:#{port}"
             cdn    = Cdn.make(uri)
-            client = described_class.new(connection_config, directory_key, cdn)
+            client = described_class.new(
+              connection_config: connection_config,
+              directory_key: directory_key,
+              cdn: cdn
+            )
 
             source_directory_path = File.expand_path('../../../../../fixtures/', File.dirname(__FILE__))
             source_file_path      = File.join(source_directory_path, 'pa/rt/partitioned_key')
@@ -773,7 +805,10 @@ module CloudController
             local_root            = File.expand_path('../../../../../', File.dirname(__FILE__))
             source_directory_path = File.join(local_root, 'fixtures')
 
-            client = described_class.new({ provider: 'Local', local_root: local_root }, 'fixtures')
+            client = described_class.new(
+              connection_config: { provider: 'Local', local_root: local_root },
+              directory_key: 'fixtures'
+            )
 
             source_file_path = File.join(source_directory_path, 'pa/rt/partitioned_key')
             source_hexdigest = Digest::SHA2.file(source_file_path).hexdigest

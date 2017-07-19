@@ -77,7 +77,7 @@ class AppBitsPackage < CloudController::Packager::LocalBitsPacker
     zip_info = `unzip -l #{Shellwords.escape(package_path)}`
     zip_info.split("\n").last.match(/^\s*(\d+)/)[1].to_i
   end
-  
+
   def tmp_dir
     @tmp_dir ||= VCAP::CloudController::Config.config[:directories][:tmpdir]
   end
