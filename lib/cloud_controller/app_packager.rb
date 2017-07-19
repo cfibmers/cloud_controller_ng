@@ -14,15 +14,15 @@ class AppPackager
   end
 
   def unzip(destination_dir)
-    raise CloudController::Errors::ApiError.new_from_details('AppBitsUploadInvalid', 'Destination does not exist') unless File.directory?(destination_dir)
-    raise CloudController::Errors::ApiError.new_from_details('AppBitsUploadInvalid', 'Symlink(s) point outside of root folder') if any_outside_symlinks?(destination_dir)
+    raise VCAP::Errors::ApiError.new_from_details('AppBitsUploadInvalid', 'Destination does not exist') unless File.directory?(destination_dir)
+    raise VCAP::Errors::ApiError.new_from_details('AppBitsUploadInvalid', 'Symlink(s) point outside of root folder') if any_outside_symlinks?(destination_dir)
 
     output, error, status = Open3.capture3(
       %(unzip -qq -n #{Shellwords.escape(@path)} -d #{Shellwords.escape(destination_dir)})
     )
 
     unless status.success?
-      raise CloudController::Errors::ApiError.new_from_details('AppPackageInvalid',
+      raise VCAP::Errors::ApiError.new_from_details('AppPackageInvalid',
         "Unzipping had errors\n STDOUT: \"#{output}\"\n STDERR: \"#{error}\"")
     end
   end
@@ -35,7 +35,7 @@ class AppPackager
       )
 
       unless status.success?
-        raise CloudController::Errors::ApiError.new_from_details('AppPackageInvalid',
+        raise VCAP::Errors::ApiError.new_from_details('AppPackageInvalid',
           "Could not zip the package\n STDOUT: \"#{stdout}\"\n STDERR: \"#{error}\"")
       end
     end
@@ -76,7 +76,7 @@ class AppPackager
     )
 
     unless status.success?
-      raise CloudController::Errors::ApiError.new_from_details('AppPackageInvalid',
+      raise VCAP::Errors::ApiError.new_from_details('AppPackageInvalid',
         "Could not remove the directories\n STDOUT: \"#{stdout}\"\n STDERR: \"#{error}\"")
     end
   end
@@ -104,6 +104,6 @@ class AppPackager
   end
 
   def invalid_zip!
-    raise CloudController::Errors::ApiError.new_from_details('AppBitsUploadInvalid', 'Invalid zip archive.')
+    raise VCAP::Errors::ApiError.new_from_details('AppBitsUploadInvalid', 'Invalid zip archive.')
   end
 end

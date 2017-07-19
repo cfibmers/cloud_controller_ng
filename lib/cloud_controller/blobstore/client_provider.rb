@@ -22,12 +22,12 @@ module CloudController
           cdn     = CloudController::Blobstore::Cdn.make(cdn_uri)
 
           client = FogClient.new(
-            options.fetch(:fog_connection),
-            directory_key,
-            cdn,
-            root_dir,
-            options[:minimum_size],
-            options[:maximum_size]
+              connection_config: options.fetch(:fog_connection),
+            directory_key: directory_key,
+            cdn: cdn,
+            root_dir: root_dir,
+            min_size: options[:minimum_size],
+            max_size: options[:maximum_size]
           )
 
           Client.new(SafeDeleteClient.new(client, root_dir))

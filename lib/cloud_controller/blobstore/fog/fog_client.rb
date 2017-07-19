@@ -14,7 +14,14 @@ module CloudController
     class FogClient < BaseClient
       DEFAULT_BATCH_SIZE = 1000
 
-      def initialize(connection_config, directory_key, cdn=nil, root_dir=nil, min_size=nil, max_size=nil)
+      def initialize(
+          connection_config:,
+          directory_key:,
+          cdn: nil,
+          root_dir: nil,
+          min_size: nil,
+          max_size: nil
+      )
         @root_dir = root_dir
         @connection_config = connection_config
         @directory_key = directory_key

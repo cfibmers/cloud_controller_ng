@@ -82,7 +82,7 @@ module CloudController::Packager
           it 'raises an error' do
             expect {
               packer.send_package_to_blobstore(blobstore_key, uploaded_files_path, cached_files_fingerprints)
-            }.to raise_error(CloudController::Errors::ApiError, /Invalid zip/)
+            }.to raise_error(VCAP::Errors::ApiError, /Invalid zip/)
           end
         end
 
@@ -105,7 +105,7 @@ module CloudController::Packager
           it 'raises an error' do
             expect {
               packer.send_package_to_blobstore(blobstore_key, uploaded_files_path, cached_files_fingerprints)
-            }.to raise_error(CloudController::Errors::ApiError, /Invalid zip/)
+            }.to raise_error(VCAP::Errors::ApiError, /Invalid zip/)
           end
         end
 
@@ -126,7 +126,7 @@ module CloudController::Packager
         it 'raises an informative error' do
           expect {
             packer.send_package_to_blobstore(blobstore_key, uploaded_files_path, cached_files_fingerprints)
-          }.to raise_error(CloudController::Errors::ApiError, /invalid/)
+          }.to raise_error(VCAP::Errors::ApiError, /invalid/)
         end
       end
 
@@ -136,7 +136,7 @@ module CloudController::Packager
         it 'raises an exception' do
           expect {
             packer.send_package_to_blobstore(blobstore_key, uploaded_files_path, cached_files_fingerprints)
-          }.to raise_error(CloudController::Errors::ApiError, /may not be larger than/)
+          }.to raise_error(VCAP::Errors::ApiError, /may not be larger than/)
         end
       end
 
