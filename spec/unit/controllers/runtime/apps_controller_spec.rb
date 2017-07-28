@@ -1688,7 +1688,11 @@ module VCAP::CloudController
     end
 
     describe 'uploading the droplet' do
-      let(:app_obj) { App.make }
+      before do
+        TestConfig.override(directories: { tmpdir: File.dirname(valid_zip.path) })
+      end
+
+      let(:process) { ProcessModel.make }
 
       let(:tmpdir) { Dir.mktmpdir }
       after { FileUtils.rm_rf(tmpdir) }
