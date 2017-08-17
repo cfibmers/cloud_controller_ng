@@ -20,7 +20,16 @@ module VCAP::CloudController::Encryptor
       run_cipher(make_cipher.decrypt, Base64.decode64(encrypted_input), salt)
     end
 
+    #
+    # Get encrypted field
+
     attr_accessor :db_encryption_key
+    attr_accessor :database_encryption_keys
+
+    def key(label)
+      raise "Key not found" unless database_encryption_keys.key?(label)
+      return(database_encryption_keys[label])
+    end
 
     private
 

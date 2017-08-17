@@ -47,6 +47,27 @@ module VCAP::CloudController
         end
       end
     end
+
+    # check that the method returns the key which matches the label
+    describe '#key' do
+      before(:each) do
+        Encryptor.database_encryption_keys = {
+            'foo' => 'bar',
+            'death' => 'metal'
+        }
+      end
+
+      it 'returns the correct key for the label' do
+        expect(Encryptor.key('foo')).to eq('bar')
+      end
+
+      context 'when there is no key for the label' do
+        it 'raises an exception if the key cannot be found' do
+          # fix so that we match on error type or message
+          expect{ Encryptor.key('doesnotexist') }.to raise_error("Key not found")
+        end
+      end
+    end
   end
 
   RSpec.describe Encryptor::FieldEncryptor do
