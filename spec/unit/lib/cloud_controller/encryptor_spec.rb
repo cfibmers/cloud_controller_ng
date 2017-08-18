@@ -36,35 +36,59 @@ module VCAP::CloudController
       it 'does not encrypt null values' do
         expect(Encryptor.encrypt(nil, salt)).to be_nil
       end
-
-      describe 'decrypting the string' do
-        it 'returns the original string' do
-          expect(Encryptor.decrypt(encrypted_string, salt)).to eq(input)
-        end
-
-        it 'returns nil if the encrypted string is nil' do
-          expect(Encryptor.decrypt(nil, salt)).to be_nil
-        end
-      end
     end
 
-    # check that the method returns the key which matches the label
-    describe '#key' do
+    describe '#decrypt' do
+      let(:unencrypted_string) { 'some-string' }
+
       before(:each) do
-        Encryptor.database_encryption_keys = {
-            'foo' => 'bar',
-            'death' => 'metal'
-        }
+        Encryptor.db_encryption_key = 'legacy-crypto-key'
       end
 
-      it 'returns the correct key for the label' do
-        expect(Encryptor.key('foo')).to eq('bar')
+      it 'returns the original string' do
+        encrypted_string = Encryptor.encrypt(unencrypted_string, salt)
+        expect(Encryptor.decrypt(encrypted_string, salt)).to eq(unencrypted_string)
       end
 
-      context 'when there is no key for the label' do
-        it 'raises an exception if the key cannot be found' do
-          # fix so that we match on error type or message
-          expect{ Encryptor.key('doesnotexist') }.to raise_error("Key not found")
+      it 'returns nil if the encrypted string is nil' do
+        expect(Encryptor.decrypt(nil, salt)).to be_nil
+      end
+
+      context 'when database_encryption_keys is configured' do
+        before(:each) do
+          Encryptor.database_encryption_keys = {
+              'foo' => 'fooencryptionkey',
+              'death' => 'headbangingdeathmetalkey'
+          }
+        end
+
+        context 'when no encryption key label is passed' do
+          it 'decrypts using #db_encryption_key' do
+            encrypted_string = Encryptor.encrypt(unencrypted_string, salt)
+            expect(Encryptor).to receive(:db_encryption_key).and_call_original.at_least(:once)
+            expect(Encryptor.decrypt(encrypted_string, salt)).to eq(unencrypted_string)
+          end
+        end
+
+        context 'when encryption was done using a labelled key' do
+          context 'when no key label is passed for decryption' do
+            it 'fails to decrypt' do
+              encrypted_string = Encryptor.encrypt(unencrypted_string, salt, 'foo')
+              expect{ Encryptor.decrypt(encrypted_string, salt) }.to raise_error(/bad decrypt/)
+            end
+          end
+
+          context 'when the wrong label is passed for decryption' do
+            it 'fails to decrypt' do
+              encrypted_string = Encryptor.encrypt(unencrypted_string, salt, 'foo')
+              expect{ Encryptor.decrypt(encrypted_string, salt, 'death') }.to raise_error(/bad decrypt/)
+            end
+          end
+
+          it 'decrypts using the key specified by the passed label' do
+            encrypted_string = Encryptor.encrypt(unencrypted_string, salt, 'foo')
+            expect(Encryptor.decrypt(encrypted_string, salt, 'foo')).to eq(unencrypted_string)
+          end
         end
       end
     end

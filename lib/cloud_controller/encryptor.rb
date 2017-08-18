@@ -10,35 +10,48 @@ module VCAP::CloudController::Encryptor
       SecureRandom.hex(4).to_s
     end
 
-    def encrypt(input, salt)
+    def encrypt(input, salt, label=nil)
       return nil unless input
-      Base64.strict_encode64(run_cipher(make_cipher.encrypt, input, salt))
+      Base64.strict_encode64(run_cipher(make_cipher.encrypt, input, salt, label))
     end
 
-    def decrypt(encrypted_input, salt)
+    def decrypt(encrypted_input, salt, label=nil)
       return nil unless encrypted_input
-      run_cipher(make_cipher.decrypt, Base64.decode64(encrypted_input), salt)
+      run_cipher(make_cipher.decrypt, Base64.decode64(encrypted_input), salt, label)
     end
 
     #
     # Get encrypted field
 
     attr_accessor :db_encryption_key
-    attr_accessor :database_encryption_keys
 
-    def key(label)
-      raise "Key not found" unless database_encryption_keys.key?(label)
-      return(database_encryption_keys[label])
+
+    def database_encryption_keys=(keys)
+      @@db_keys = keys
     end
 
     private
+
+    def database_encryption_keys
+      @@db_keys ||= Hash.new
+    end
 
     def make_cipher
       OpenSSL::Cipher::Cipher.new(ALGORITHM)
     end
 
-    def run_cipher(cipher, input, salt)
-      cipher.pkcs5_keyivgen(db_encryption_key, salt)
+    def key(label)
+      return(database_encryption_keys[label])
+    end
+
+    def run_cipher(cipher, input, salt, label=nil)
+      key_to_use = key(label)
+
+      unless key_to_use != nil
+        key_to_use = db_encryption_key
+      end
+
+      cipher.pkcs5_keyivgen(key_to_use, salt)
       cipher.update(input).tap { |result| result << cipher.final }
     end
   end
