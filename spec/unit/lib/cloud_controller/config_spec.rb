@@ -311,23 +311,23 @@ module VCAP::CloudController
       end
 
       describe 'database_encryption keys' do
-        it 'sets up the database encryption keys' do
-          Config.configure_components(@test_config.merge(database_encryption_keys: {
+        let(:keys) do
+          {
               'current' => 'abc-123',
               'previous' => 'def-456',
               'old' => 'ghi-789'
-          }))
-          expect(Encryptor.key('current')).to eq('abc-123')
-          expect(Encryptor.key('previous')).to eq('def-456')
-          expect(Encryptor.key('old')).to eq('ghi-789')
+          }
+        end
+
+        it 'sets up the database encryption keys' do
+          Config.configure_components(@test_config.merge(database_encryption_keys: keys))
+          expect(Encryptor.class_variable_get(:@@db_keys)).to eq(keys)
         end
 
         context 'when database encryption keys are not configured' do
           it 'initializes the keys to an empty hash' do
             Config.configure_components(@test_config)
-
-            # Match on error type and/or message
-            expect{ Encryptor.key('current') }.to raise_error("Key not found")
+            expect(Encryptor.class_variable_get(:@@db_keys)).to be_empty
           end
         end
       end
