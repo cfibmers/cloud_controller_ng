@@ -128,19 +128,17 @@ module VCAP::CloudController
       end
 
       context 'model has the salt column' do
-        context 'default name' do
-          let(:columns) { [:id, :name, :size, :name_salt] }
+        let(:columns) { [:id, :name, :size, :name_salt] }
 
-          it 'does not raise an error' do
-            expect {
-              klass.send :encrypt, :name
-            }.to_not raise_error
-          end
-
-          it 'creates a salt generation method' do
+        it 'does not raise an error' do
+          expect {
             klass.send :encrypt, :name
-            expect(klass.instance_methods).to include(:generate_name_salt)
-          end
+          }.to_not raise_error
+        end
+
+        it 'creates a salt generation method' do
+          klass.send :encrypt, :name
+          expect(klass.instance_methods).to include(:generate_name_salt)
         end
 
         context 'explicit name' do
@@ -157,11 +155,15 @@ module VCAP::CloudController
             expect(klass.instance_methods).to include(:generate_foobar)
           end
         end
+
+        context 'model has a value for key_label' do
+
+        end
       end
     end
 
     describe 'field-specific methods' do
-      let(:columns) { [:sekret, :sekret_salt] }
+      let(:columns) { [:sekret, :sekret_salt, :key_label] }
       let(:klass2) { Class.new klass }
       let(:subject) { klass2.new }
       let(:encryption_args) { {} }
@@ -226,11 +228,37 @@ module VCAP::CloudController
         end
 
         context 'non-blank value' do
+          let (:salt) { Encryptor.generate_salt }
+          let (:unencrypted_string) { 'unencrypted' }
+
+          before do
+            Encryptor.database_encryption_keys = {
+                'foo' => 'fooencryptionkey',
+                'death' => 'headbangingdeathmetalkey'
+            }
+          end
+
           it 'encrypts by passing the value and salt to Encryptor' do
-            subject.sekret_salt = 'asdf'
-            expect(Encryptor).to receive(:encrypt).with('unencrypted', 'asdf') { 'encrypted' }
-            subject.sekret = 'unencrypted'
+            subject.sekret_salt = salt
+            expect(Encryptor).to receive(:encrypt).with('unencrypted', salt) { 'encrypted' }
+            subject.sekret = unencrypted_string
             expect(subject.underlying_sekret).to eq 'encrypted'
+          end
+
+          it 'encrypts using the default db_encryption_key' do
+            subject.sekret_salt = salt
+            expect(Encryptor).to receive(:db_encryption_key).and_return('foo')
+            subject.sekret = unencrypted_string
+          end
+
+          context 'when the record contains an encryption key label' do
+            it 'encrypts using the key corresponding to the label' do
+              subject.sekret_salt = salt
+              subject.key_label = 'foo'
+              expect(Encryptor).to receive(:encrypt).with(unencrypted_string, salt, 'foo').and_call_original
+              subject.sekret = unencrypted_string
+              expect(Encryptor.decrypt(subject.underlying_sekret, salt, 'foo')).to eq(unencrypted_string)
+            end
           end
         end
       end

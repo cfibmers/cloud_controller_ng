@@ -97,7 +97,8 @@ module VCAP::CloudController::Encryptor
             if value.blank?
               nil
             else
-              VCAP::CloudController::Encryptor.encrypt(value, send(salt_name))
+              kl = send(:key_label)
+              VCAP::CloudController::Encryptor.encrypt(value, send(salt_name), !kl.nil? ? kl : nil)
             end
 
           send "#{field_name}_without_encryption=", encrypted_value
