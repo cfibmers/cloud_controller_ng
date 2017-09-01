@@ -14,9 +14,8 @@ module VCAP::CloudController::Encryptor
     def encrypt(input, salt)
       return nil unless input
 
-      # TODO add getter for global config key label
-      # Need tests...
-      label = get_config_label()
+      # TODO need a default since current_encryption_key_label is optional
+      label = VCAP::CloudController::Config::config[:current_encryption_key_label]
       key = key_to_use(label)
 
       Base64.strict_encode64(run_cipher(make_cipher.encrypt, input, salt, key))
@@ -35,7 +34,6 @@ module VCAP::CloudController::Encryptor
 
     attr_accessor :db_encryption_key
 
-
     def database_encryption_keys=(keys)
       @@db_keys = keys
     end
@@ -53,6 +51,7 @@ module VCAP::CloudController::Encryptor
     end
 
     def database_encryption_keys
+      # QUESTION shouldn't this default to Config::config[:database_encryption_keys], if it is set?
       @@db_keys ||= Hash.new
     end
 
@@ -61,6 +60,8 @@ module VCAP::CloudController::Encryptor
     end
 
     def key(label)
+      # QUESTION shouldn't this default to Config::config[:db_encryption_key], since
+      # it is a required config option
       return(database_encryption_keys[label])
     end
 
@@ -111,8 +112,7 @@ module VCAP::CloudController::Encryptor
             if value.blank?
               nil
             else
-              kl = send(:key_label)
-              VCAP::CloudController::Encryptor.encrypt(value, send(salt_name), !kl.nil? ? kl : nil)
+              VCAP::CloudController::Encryptor.encrypt(value, send(salt_name))
             end
 
           send "#{field_name}_without_encryption=", encrypted_value

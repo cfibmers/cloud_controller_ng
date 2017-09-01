@@ -56,10 +56,15 @@ module VCAP::CloudController
 
       context 'when database_encryption_keys is configured' do
         before(:each) do
+          VCAP::CloudController::Config::config[:current_encryption_key_label] = 'foo'
           Encryptor.database_encryption_keys = {
               'foo' => 'fooencryptionkey',
               'death' => 'headbangingdeathmetalkey'
           }
+        end
+
+        after(:each) do
+          VCAP::CloudController::Config::config[:current_encryption_key_label] = ''
         end
 
         context 'when no encryption key label is passed' do
@@ -73,20 +78,20 @@ module VCAP::CloudController
         context 'when encryption was done using a labelled key' do
           context 'when no key label is passed for decryption' do
             it 'fails to decrypt' do
-              encrypted_string = Encryptor.encrypt(unencrypted_string, salt, 'foo')
+              encrypted_string = Encryptor.encrypt(unencrypted_string, salt)
               expect{ Encryptor.decrypt(encrypted_string, salt) }.to raise_error(/bad decrypt/)
             end
           end
 
           context 'when the wrong label is passed for decryption' do
             it 'fails to decrypt' do
-              encrypted_string = Encryptor.encrypt(unencrypted_string, salt, 'foo')
+              encrypted_string = Encryptor.encrypt(unencrypted_string, salt)
               expect{ Encryptor.decrypt(encrypted_string, salt, 'death') }.to raise_error(/bad decrypt/)
             end
           end
 
           it 'decrypts using the key specified by the passed label' do
-            encrypted_string = Encryptor.encrypt(unencrypted_string, salt, 'foo')
+            encrypted_string = Encryptor.encrypt(unencrypted_string, salt)
             expect(Encryptor.decrypt(encrypted_string, salt, 'foo')).to eq(unencrypted_string)
           end
         end
@@ -253,7 +258,7 @@ module VCAP::CloudController
             it 'encrypts using the key corresponding to the label' do
               subject.sekret_salt = salt
               subject.key_label = 'foo'
-              expect(Encryptor).to receive(:encrypt).with(unencrypted_string, salt, 'foo').and_call_original
+              expect(Encryptor).to receive(:encrypt).with(unencrypted_string, salt).and_call_original
               subject.sekret = unencrypted_string
               expect(Encryptor.decrypt(subject.underlying_sekret, salt, 'foo')).to eq(unencrypted_string)
             end
@@ -276,11 +281,14 @@ module VCAP::CloudController
               # THEN set the record's key_label field to the new key_label value
               # ELSE leave record unchanged and return error
               it 'updates record when the keys are not equal' do
-                # TODO setup should include setting new global config key label to bar
                 subject.sekret_salt = salt
                 subject.key_label = 'foo'
-                # the mutator will auto encrypt
+                new_key = 'bar'
+                VCAP::CloudController::Config::config[:current_encryption_key_label] = new_key
                 subject.sekret = unencrypted_string
+                expect(Encryptor.decrypt(subject.underlying_sekret, subject.sekret_salt,
+                       VCAP::CloudController::Config::config[:current_encryption_key_label])).to eq(unencrypted_string)
+                expect(subject.key_label).to eq(VCAP::CloudController::Config::config[:current_encryption_key_label])           
                 # TODO decrypt the value using the new global config key and
                 # verify db value
 
