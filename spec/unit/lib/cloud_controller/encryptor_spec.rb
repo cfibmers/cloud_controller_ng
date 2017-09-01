@@ -156,9 +156,7 @@ module VCAP::CloudController
           end
         end
 
-        context 'model has a value for key_label' do
 
-        end
       end
     end
 
@@ -234,7 +232,7 @@ module VCAP::CloudController
           before do
             Encryptor.database_encryption_keys = {
                 'foo' => 'fooencryptionkey',
-                'death' => 'headbangingdeathmetalkey'
+                'bar' => 'headbangingdeathmetalkey'
             }
           end
 
@@ -258,6 +256,40 @@ module VCAP::CloudController
               expect(Encryptor).to receive(:encrypt).with(unencrypted_string, salt, 'foo').and_call_original
               subject.sekret = unencrypted_string
               expect(Encryptor.decrypt(subject.underlying_sekret, salt, 'foo')).to eq(unencrypted_string)
+            end
+          end
+
+          # Table, e.g.:
+          #    ID, Val, [field_]salt, key_label
+
+          # Case 1: key_label1 != key_label2
+          # Case 2: key_label1 == key_label2
+          # Case 3: Enforce not nullable (?)
+          context 'model has a value for key_label' do
+            let(:columns) { [:sekret, :sekret_salt, :key_label] }
+
+            context 'and a different key is used for encryption' do
+              # IF the new key_label value is not equal to the record's current value
+              # THEN use the record's current key_label to decrypt the entity
+              # THEN use the new key_label value to encrypt the entity
+              # IF encryption succeeds
+              # THEN set the record's key_label field to the new key_label value
+              # ELSE leave record unchanged and return error
+              it 'updates record when the keys are not equal' do
+                # TODO setup should include setting new global config key label to bar
+                subject.sekret_salt = salt
+                subject.key_label = 'foo'
+                # the mutator will auto encrypt
+                subject.sekret = unencrypted_string
+                # TODO decrypt the value using the new global config key and
+                # verify db value
+
+
+                # Spose we want to rotate from 'foo' to 'bar'
+                # object has 'foo' in label col
+                # we retrieve, decrypt using 'foo', save new value - at what point do we save 'bar' into key_label
+                # imagine other encrypted cols in same row
+              end
             end
           end
         end

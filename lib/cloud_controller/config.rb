@@ -198,6 +198,7 @@ module VCAP::CloudController
         :db_encryption_key => String,
 
         optional(:database_encryption_keys) => Hash,
+        optional(:current_encryption_key_label) => String,
 
         optional(:flapping_crash_count_threshold) => Integer,
 

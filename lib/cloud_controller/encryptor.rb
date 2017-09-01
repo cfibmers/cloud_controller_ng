@@ -10,14 +10,24 @@ module VCAP::CloudController::Encryptor
       SecureRandom.hex(4).to_s
     end
 
-    def encrypt(input, salt, label=nil)
+    # takes no label, looks up in global config
+    def encrypt(input, salt)
       return nil unless input
-      Base64.strict_encode64(run_cipher(make_cipher.encrypt, input, salt, label))
+
+      # TODO add getter for global config key label
+      # Need tests...
+      label = get_config_label()
+      key = key_to_use(label)
+
+      Base64.strict_encode64(run_cipher(make_cipher.encrypt, input, salt, key))
     end
 
+    # this takes a label
     def decrypt(encrypted_input, salt, label=nil)
       return nil unless encrypted_input
-      run_cipher(make_cipher.decrypt, Base64.decode64(encrypted_input), salt, label)
+      key = key_to_use(label)
+
+      run_cipher(make_cipher.decrypt, Base64.decode64(encrypted_input), salt, key)
     end
 
     #
@@ -32,6 +42,16 @@ module VCAP::CloudController::Encryptor
 
     private
 
+    def key_to_use(label)
+      key_to_use = key(label)
+
+      unless key_to_use != nil
+        key_to_use = db_encryption_key
+      end
+
+      return key_to_use
+    end
+
     def database_encryption_keys
       @@db_keys ||= Hash.new
     end
@@ -44,13 +64,7 @@ module VCAP::CloudController::Encryptor
       return(database_encryption_keys[label])
     end
 
-    def run_cipher(cipher, input, salt, label=nil)
-      key_to_use = key(label)
-
-      unless key_to_use != nil
-        key_to_use = db_encryption_key
-      end
-
+    def run_cipher(cipher, input, salt, key_to_use)
       cipher.pkcs5_keyivgen(key_to_use, salt)
       cipher.update(input).tap { |result| result << cipher.final }
     end
