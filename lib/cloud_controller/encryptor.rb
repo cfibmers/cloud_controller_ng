@@ -15,7 +15,7 @@ module VCAP::CloudController::Encryptor
       return nil unless input
 
       # TODO need a default since current_encryption_key_label is optional
-      label = VCAP::CloudController::Config::config[:current_encryption_key_label]
+      label = current_encryption_key_label
       key = key_to_use(label)
 
       Base64.strict_encode64(run_cipher(make_cipher.encrypt, input, salt, key))
@@ -25,48 +25,33 @@ module VCAP::CloudController::Encryptor
     def decrypt(encrypted_input, salt, label=nil)
       return nil unless encrypted_input
       key = key_to_use(label)
-
       run_cipher(make_cipher.decrypt, Base64.decode64(encrypted_input), salt, key)
     end
 
-    #
-    # Get encrypted field
-
-    attr_accessor :db_encryption_key
-
-    def database_encryption_keys=(keys)
-      @@db_keys = keys
-    end
+    attr_writer :db_encryption_key
+    attr_writer :database_encryption_keys
+    attr_writer :current_encryption_key_label
 
     private
 
-    def key_to_use(label)
-      key_to_use = key(label)
+    attr_reader :db_encryption_key
+    attr_reader :database_encryption_keys
+    attr_reader :current_encryption_key_label
 
-      unless key_to_use != nil
-        key_to_use = db_encryption_key
+    def key_to_use(label)
+      if database_encryption_keys.nil? || !database_encryption_keys.key?(label)
+         return db_encryption_key
       end
 
-      return key_to_use
-    end
-
-    def database_encryption_keys
-      # QUESTION shouldn't this default to Config::config[:database_encryption_keys], if it is set?
-      @@db_keys ||= Hash.new
+      return database_encryption_keys[label]
     end
 
     def make_cipher
       OpenSSL::Cipher::Cipher.new(ALGORITHM)
     end
 
-    def key(label)
-      # QUESTION shouldn't this default to Config::config[:db_encryption_key], since
-      # it is a required config option
-      return(database_encryption_keys[label])
-    end
-
-    def run_cipher(cipher, input, salt, key_to_use)
-      cipher.pkcs5_keyivgen(key_to_use, salt)
+    def run_cipher(cipher, input, salt, key)
+      cipher.pkcs5_keyivgen(key, salt)
       cipher.update(input).tap { |result| result << cipher.final }
     end
   end

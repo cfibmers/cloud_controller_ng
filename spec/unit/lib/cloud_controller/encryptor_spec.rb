@@ -36,6 +36,54 @@ module VCAP::CloudController
       it 'does not encrypt null values' do
         expect(Encryptor.encrypt(nil, salt)).to be_nil
       end
+
+      context 'when database_encryption_keys has been set' do
+         let(:salt) { 'FFFFFFFF' }
+         let(:encrypted_death_string) { '9V26DIsXVTK3OSSx5R+/Cg==' }
+         let(:encrypted_legacy_string) { 'SqyE1xSSHbf6wnI31YjxTQ==' }
+
+         before(:each) do
+            Encryptor.db_encryption_key = 'legacy-crypto-key'
+            Encryptor.database_encryption_keys = {
+                'foo' => 'fooencryptionkey',
+                'death' => 'headbangingdeathmetalkey'
+            }
+          end
+
+         context 'when the label is found in the hash' do
+            it 'will encrypt using the value corresponding to the label' do
+               Encryptor.current_encryption_key_label = 'death'
+               expect(Encryptor.encrypt(input, salt)).to eql(encrypted_death_string)
+            end
+         end
+
+         context 'when the label is not found in the hash' do
+            it 'will encrypt using current db_encryption_key when the label is not nil' do
+               Encryptor.current_encryption_key_label = 'Inigo Montoya'
+               expect(Encryptor.encrypt(input, salt)).to eql(encrypted_legacy_string)
+            end
+
+            it 'will encrypt using current db_encryption_key when the label is nil' do
+               Encryptor.current_encryption_key_label = nil
+               expect(Encryptor.encrypt(input, salt)).to eql(encrypted_legacy_string)
+            end
+         end
+      end
+
+      context 'when database_encryption_keys has not been set' do
+         let(:salt) { 'FFFFFFFF' }
+         let(:encrypted_legacy_string) { 'SqyE1xSSHbf6wnI31YjxTQ==' }
+
+         before(:each) do
+            Encryptor.db_encryption_key = 'legacy-crypto-key'
+            Encryptor.database_encryption_keys = nil
+         end
+
+         it 'will encrypt using db_encryption_key' do
+            Encryptor.current_encryption_key_label = 'foo'
+            expect(Encryptor.encrypt(input, salt)).to eql(encrypted_legacy_string)
+         end
+      end
     end
 
     describe '#decrypt' do
@@ -56,15 +104,10 @@ module VCAP::CloudController
 
       context 'when database_encryption_keys is configured' do
         before(:each) do
-          VCAP::CloudController::Config::config[:current_encryption_key_label] = 'foo'
           Encryptor.database_encryption_keys = {
               'foo' => 'fooencryptionkey',
               'death' => 'headbangingdeathmetalkey'
           }
-        end
-
-        after(:each) do
-          VCAP::CloudController::Config::config[:current_encryption_key_label] = ''
         end
 
         context 'when no encryption key label is passed' do
@@ -260,6 +303,8 @@ module VCAP::CloudController
               subject.key_label = 'foo'
               expect(Encryptor).to receive(:encrypt).with(unencrypted_string, salt).and_call_original
               subject.sekret = unencrypted_string
+              puts subject.sekret_with_encryption
+              puts subject.sekret_without_encryption
               expect(Encryptor.decrypt(subject.underlying_sekret, salt, 'foo')).to eq(unencrypted_string)
             end
           end
@@ -284,11 +329,9 @@ module VCAP::CloudController
                 subject.sekret_salt = salt
                 subject.key_label = 'foo'
                 new_key = 'bar'
-                VCAP::CloudController::Config::config[:current_encryption_key_label] = new_key
                 subject.sekret = unencrypted_string
-                expect(Encryptor.decrypt(subject.underlying_sekret, subject.sekret_salt,
-                       VCAP::CloudController::Config::config[:current_encryption_key_label])).to eq(unencrypted_string)
-                expect(subject.key_label).to eq(VCAP::CloudController::Config::config[:current_encryption_key_label])           
+                expect(Encryptor.decrypt(subject.underlying_sekret, subject.sekret_salt, new_key)).to eq(unencrypted_string)
+                expect(subject.key_label).to eq(new_key)           
                 # TODO decrypt the value using the new global config key and
                 # verify db value
 

@@ -88,6 +88,10 @@ module VCAP::CloudController
         it 'sets a default value for the bits service' do
           expect(config[:bits_service]).to eq({ enabled: false })
         end
+
+        it 'does not set a default for current_encryption_key_label' do
+         expect(config[:current_encryption_key_label]).to eq(nil)
+       end
       end
 
       context 'when config values are provided' do
@@ -172,6 +176,10 @@ module VCAP::CloudController
 
           it 'preserves the internal_service_hostname value from the file' do
             expect(config[:internal_service_hostname]).to eq('cloud_controller_ng.service.cf.internal')
+          end
+
+          it 'preserves the current_encryption_key_label value from the file' do
+            expect(config[:current_encryption_key_label]).to eq('foo')
           end
 
           it 'preserves the expiration values from the file' do
@@ -306,8 +314,13 @@ module VCAP::CloudController
       end
 
       it 'sets up the db encryption key' do
+        expect(Encryptor).to receive(:db_encryption_key=).with('123-456')
         Config.configure_components(@test_config.merge(db_encryption_key: '123-456'))
-        expect(Encryptor.db_encryption_key).to eq('123-456')
+      end
+
+      it 'sets up the current encryption key label' do
+        expect(Encryptor).to receive(:current_encryption_key_label=).with('456-789')    
+        Config.configure_components(@test_config.merge(current_encryption_key_label: '456-789'))
       end
 
       describe 'database_encryption keys' do

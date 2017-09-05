@@ -323,11 +323,14 @@ module VCAP::CloudController
         Encryptor.db_encryption_key = config[:db_encryption_key]
 
         if config.key?(:database_encryption_keys)
-        Encryptor.database_encryption_keys = config[:database_encryption_keys]
+          Encryptor.database_encryption_keys = config[:database_encryption_keys]
         else
           Encryptor.database_encryption_keys = Hash.new()
         end
 
+        if config.key?(:current_encryption_key_label)
+          Encryptor.current_encryption_key_label = config[:current_encryption_key_label]
+        end
         AccountCapacity.configure(config)
         ResourcePool.instance = ResourcePool.new(config)
 
