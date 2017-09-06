@@ -30,13 +30,12 @@ module VCAP::CloudController::Encryptor
 
     attr_writer :db_encryption_key
     attr_writer :database_encryption_keys
-    attr_writer :current_encryption_key_label
+    attr_accessor :current_encryption_key_label
 
     private
 
     attr_reader :db_encryption_key
     attr_reader :database_encryption_keys
-    attr_reader :current_encryption_key_label
 
     def key_to_use(label)
       if database_encryption_keys.nil? || !database_encryption_keys.key?(label)
@@ -86,19 +85,24 @@ module VCAP::CloudController::Encryptor
         end
 
         define_method "#{field_name}_with_encryption" do
-          VCAP::CloudController::Encryptor.decrypt send("#{field_name}_without_encryption"), send(salt_name)
+          VCAP::CloudController::Encryptor.decrypt send("#{field_name}_without_encryption"), send(salt_name), send(:key_label)
         end
         alias_method_chain field_name, 'encryption'
 
         define_method "#{field_name}_with_encryption=" do |value|
           send generate_salt_name
 
-          encrypted_value =
-            if value.blank?
-              nil
-            else
-              VCAP::CloudController::Encryptor.encrypt(value, send(salt_name))
+          encrypted_value = nil
+
+         if value.blank?
+            encrypted_value = nil
+         else
+            # will use the current key label to encrypt
+            encrypted_value = VCAP::CloudController::Encryptor.encrypt(value, send(salt_name))
+            if send(:key_label) != VCAP::CloudController::Encryptor.current_encryption_key_label
+               send :key_label=, VCAP::CloudController::Encryptor.current_encryption_key_label
             end
+         end
 
           send "#{field_name}_without_encryption=", encrypted_value
         end

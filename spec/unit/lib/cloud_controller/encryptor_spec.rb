@@ -104,6 +104,7 @@ module VCAP::CloudController
 
       context 'when database_encryption_keys is configured' do
         before(:each) do
+          Encryptor.current_encryption_key_label = 'foo'
           Encryptor.database_encryption_keys = {
               'foo' => 'fooencryptionkey',
               'death' => 'headbangingdeathmetalkey'
@@ -111,6 +112,10 @@ module VCAP::CloudController
         end
 
         context 'when no encryption key label is passed' do
+         before(:each) do
+            Encryptor.current_encryption_key_label = nil
+          end
+
           it 'decrypts using #db_encryption_key' do
             encrypted_string = Encryptor.encrypt(unencrypted_string, salt)
             expect(Encryptor).to receive(:db_encryption_key).and_call_original.at_least(:once)
@@ -252,7 +257,7 @@ module VCAP::CloudController
         it 'decrypts by passing the salt and the underlying value to Encryptor' do
           subject.sekret_salt = 'asdf'
           subject.underlying_sekret = 'underlying'
-          expect(Encryptor).to receive(:decrypt).with('underlying', 'asdf') { 'unencrypted' }
+          expect(Encryptor).to receive(:decrypt).with('underlying', 'asdf', nil) { 'unencrypted' }
           expect(subject.sekret).to eq 'unencrypted'
         end
       end
@@ -303,8 +308,6 @@ module VCAP::CloudController
               subject.key_label = 'foo'
               expect(Encryptor).to receive(:encrypt).with(unencrypted_string, salt).and_call_original
               subject.sekret = unencrypted_string
-              puts subject.sekret_with_encryption
-              puts subject.sekret_without_encryption
               expect(Encryptor.decrypt(subject.underlying_sekret, salt, 'foo')).to eq(unencrypted_string)
             end
           end
@@ -328,18 +331,14 @@ module VCAP::CloudController
               it 'updates record when the keys are not equal' do
                 subject.sekret_salt = salt
                 subject.key_label = 'foo'
-                new_key = 'bar'
                 subject.sekret = unencrypted_string
-                expect(Encryptor.decrypt(subject.underlying_sekret, subject.sekret_salt, new_key)).to eq(unencrypted_string)
-                expect(subject.key_label).to eq(new_key)           
-                # TODO decrypt the value using the new global config key and
-                # verify db value
 
+                expect(subject.sekret).to eq(unencrypted_string)
 
-                # Spose we want to rotate from 'foo' to 'bar'
-                # object has 'foo' in label col
-                # we retrieve, decrypt using 'foo', save new value - at what point do we save 'bar' into key_label
-                # imagine other encrypted cols in same row
+                Encryptor.current_encryption_key_label = 'death'
+                subject.sekret = 'nu'
+                expect(subject.sekret).to eq('nu')
+                expect(subject.key_label).to eq(Encryptor.current_encryption_key_label)
               end
             end
           end
