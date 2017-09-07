@@ -303,9 +303,11 @@ module VCAP::CloudController
           end
 
           context 'when the record contains an encryption key label' do
+            before do
+               Encryptor.current_encryption_key_label = 'foo'
+             end
             it 'encrypts using the key corresponding to the label' do
               subject.sekret_salt = salt
-              subject.key_label = 'foo'
               expect(Encryptor).to receive(:encrypt).with(unencrypted_string, salt).and_call_original
               subject.sekret = unencrypted_string
               expect(Encryptor.decrypt(subject.underlying_sekret, salt, 'foo')).to eq(unencrypted_string)
@@ -346,7 +348,7 @@ module VCAP::CloudController
       end
 
       describe 'alternative storage column is specified' do
-        let(:columns) { [:sekret, :sekret_salt, :encrypted_sekret] }
+        let(:columns) { [:sekret, :sekret_salt, :encrypted_sekret, :key_label] }
         let(:encryption_args) { { column: :encrypted_sekret } }
 
         it 'stores the encrypted value in that column' do

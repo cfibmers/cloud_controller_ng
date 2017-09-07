@@ -25,6 +25,7 @@ module VCAP::CloudController::Encryptor
     def decrypt(encrypted_input, salt, label=nil)
       return nil unless encrypted_input
       key = key_to_use(label)
+
       run_cipher(make_cipher.decrypt, Base64.decode64(encrypted_input), salt, key)
     end
 
