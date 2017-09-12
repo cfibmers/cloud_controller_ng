@@ -154,8 +154,13 @@ module VCAP::CloudController
       end
     end
 
+    let(:db) { double(Sequel::Database) }
+
     before do
       allow(klass).to receive(:columns) { columns }
+      allow(db).to receive(:transaction) do |&block|
+        block.call
+      end
       klass.send :attr_accessor, *columns # emulate Sequel super methods
     end
 
@@ -166,7 +171,7 @@ module VCAP::CloudController
         context 'default name' do
           it 'raises an error' do
             expect {
-              klass.send :encrypt, :name
+              klass.send :set_field_as_encrypted, :name
             }.to raise_error(RuntimeError, /name_salt/)
           end
         end
@@ -174,7 +179,7 @@ module VCAP::CloudController
         context 'explicit name' do
           it 'raises an error' do
             expect {
-              klass.send :encrypt, :name, salt: :foobar
+              klass.send :set_field_as_encrypted, :name, salt: :foobar
             }.to raise_error(RuntimeError, /foobar/)
           end
         end
@@ -185,12 +190,12 @@ module VCAP::CloudController
 
         it 'does not raise an error' do
           expect {
-            klass.send :encrypt, :name
+            klass.send :set_field_as_encrypted, :name
           }.to_not raise_error
         end
 
         it 'creates a salt generation method' do
-          klass.send :encrypt, :name
+          klass.send :set_field_as_encrypted, :name
           expect(klass.instance_methods).to include(:generate_name_salt)
         end
 
@@ -199,12 +204,12 @@ module VCAP::CloudController
 
           it 'does not raise an error' do
             expect {
-              klass.send :encrypt, :name, salt: :foobar
+              klass.send :set_field_as_encrypted, :name, salt: :foobar
             }.to_not raise_error
           end
 
           it 'creates a salt generation method' do
-            klass.send :encrypt, :name, salt: :foobar
+            klass.send :set_field_as_encrypted, :name, salt: :foobar
             expect(klass.instance_methods).to include(:generate_foobar)
           end
         end
@@ -218,8 +223,10 @@ module VCAP::CloudController
       let(:klass2) { Class.new klass }
       let(:subject) { klass2.new }
       let(:encryption_args) { {} }
+      let(:default_key) { 'somerandomkey' }
 
       before do
+        allow(subject).to receive(:db) { db }
         klass.class_eval do
           def underlying_sekret=(value)
             @sekret = value
@@ -229,7 +236,9 @@ module VCAP::CloudController
             @sekret
           end
         end
-        klass2.send :encrypt, :sekret, encryption_args
+        klass2.send :set_field_as_encrypted, :sekret, encryption_args
+
+        Encryptor.db_encryption_key = default_key
       end
 
       describe 'salt generation method' do
@@ -298,8 +307,8 @@ module VCAP::CloudController
 
           it 'encrypts using the default db_encryption_key' do
             subject.sekret_salt = salt
-            expect(Encryptor).to receive(:db_encryption_key).and_return('foo')
             subject.sekret = unencrypted_string
+            expect(Encryptor.decrypt(subject.underlying_sekret, subject.sekret_salt, default_key)).to eq(unencrypted_string)
           end
 
           context 'when the record contains an encryption key label' do
@@ -323,6 +332,13 @@ module VCAP::CloudController
           context 'model has a value for key_label' do
             let(:columns) { [:sekret, :sekret_salt, :key_label] }
 
+            before do
+              subject.sekret_salt = salt
+              subject.key_label = 'foo'
+              subject.sekret = unencrypted_string
+              expect(subject.sekret).to eq(unencrypted_string)
+            end
+
             context 'and a different key is used for encryption' do
               # IF the new key_label value is not equal to the record's current value
               # THEN use the record's current key_label to decrypt the entity
@@ -331,16 +347,41 @@ module VCAP::CloudController
               # THEN set the record's key_label field to the new key_label value
               # ELSE leave record unchanged and return error
               it 'updates record when the keys are not equal' do
-                subject.sekret_salt = salt
-                subject.key_label = 'foo'
-                subject.sekret = unencrypted_string
+                # subject.sekret_salt = salt
+                # subject.key_label = 'foo'
+                # subject.sekret = unencrypted_string
 
-                expect(subject.sekret).to eq(unencrypted_string)
 
-                Encryptor.current_encryption_key_label = 'death'
+                Encryptor.current_encryption_key_label = 'bar'
                 subject.sekret = 'nu'
                 expect(subject.sekret).to eq('nu')
                 expect(subject.key_label).to eq(Encryptor.current_encryption_key_label)
+              end
+
+              context 'and the model has another encrypted field' do
+                let(:columns) { [:sekret, :sekret_salt, :sekret2, :sekret2_salt, :key_label] }
+                let(:unencrypted_string2) { 'announce presence with authority' }
+
+                before do
+                  klass.class_eval do
+                    def underlying_sekret2=(value)
+                      @sekret2 = value
+                    end
+
+                    def underlying_sekret2
+                      @sekret2
+                    end
+                  end
+                  klass2.send :set_field_as_encrypted, :sekret2, encryption_args
+                  subject.sekret2_salt = Encryptor.generate_salt
+                  subject.sekret2 = unencrypted_string2
+                end
+
+                it 'reencrypts that field with the new key' do
+                  Encryptor.current_encryption_key_label = 'bar'
+                  subject.sekret = 'nu'
+                  expect(Encryptor.decrypt(subject.underlying_sekret2, subject.sekret2_salt, 'bar')).to eq(unencrypted_string2)
+                end
               end
             end
           end
