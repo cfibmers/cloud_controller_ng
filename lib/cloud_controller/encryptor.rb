@@ -1,13 +1,17 @@
 require 'securerandom'
+require 'openssl'
 require 'openssl/cipher'
+require 'openssl/digest'
+
+#require 'openssl/ossl'
 require 'base64'
 
 module VCAP::CloudController::Encryptor
   class << self
-    ALGORITHM = 'AES-128-CBC'.freeze
+    ALGORITHM = 'AES-256-CBC'.freeze
 
     def generate_salt
-      SecureRandom.hex(4).to_s
+      SecureRandom.hex(8).to_s
     end
 
     # takes no label, looks up in global config
@@ -52,7 +56,8 @@ module VCAP::CloudController::Encryptor
     end
 
     def run_cipher(cipher, input, salt, key)
-      cipher.pkcs5_keyivgen(key, salt)
+      cipher.key = OpenSSL::PKCS5.pbkdf2_hmac(key, salt, 2048, 256, OpenSSL::Digest::SHA256.new)
+      cipher.iv = salt
       cipher.update(input).tap { |result| result << cipher.final }
     end
   end

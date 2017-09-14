@@ -6,7 +6,7 @@ module VCAP::CloudController
 
     describe 'generating some salt' do
       it 'returns a short, random string' do
-        expect(salt.length).to eql(8)
+        expect(salt.length).to eql(16)
         expect(salt).not_to eql(Encryptor.generate_salt)
       end
     end
@@ -38,9 +38,9 @@ module VCAP::CloudController
       end
 
       context 'when database_encryption_keys has been set' do
-         let(:salt) { 'FFFFFFFF' }
-         let(:encrypted_death_string) { '9V26DIsXVTK3OSSx5R+/Cg==' }
-         let(:encrypted_legacy_string) { 'SqyE1xSSHbf6wnI31YjxTQ==' }
+         let(:salt) { 'FFFFFFFFFFFFFFFF' }
+         let(:encrypted_death_string) { 'NHQ+mjls1UHJBqpO0KWjTA==' }
+         let(:encrypted_legacy_string) { '1XJDJYNqWOKokyVx0WHZ/g==' }
 
          before(:each) do
             Encryptor.db_encryption_key = 'legacy-crypto-key'
@@ -71,8 +71,8 @@ module VCAP::CloudController
       end
 
       context 'when database_encryption_keys has not been set' do
-         let(:salt) { 'FFFFFFFF' }
-         let(:encrypted_legacy_string) { 'SqyE1xSSHbf6wnI31YjxTQ==' }
+         let(:salt) { 'FFFFFFFFFFFFFFFF' }
+         let(:encrypted_legacy_string) { '1XJDJYNqWOKokyVx0WHZ/g==' }
 
          before(:each) do
             Encryptor.db_encryption_key = 'legacy-crypto-key'
@@ -112,7 +112,7 @@ module VCAP::CloudController
         end
 
         context 'when no encryption key label is passed' do
-         before(:each) do
+          before(:each) do
             Encryptor.current_encryption_key_label = nil
           end
 
@@ -132,6 +132,9 @@ module VCAP::CloudController
           end
 
           context 'when the wrong label is passed for decryption' do
+            before(:each) do
+               Encryptor.current_encryption_key_label = 'foo'
+            end
             it 'fails to decrypt' do
               encrypted_string = Encryptor.encrypt(unencrypted_string, salt)
               expect{ Encryptor.decrypt(encrypted_string, salt, 'death') }.to raise_error(/bad decrypt/)
@@ -273,7 +276,7 @@ module VCAP::CloudController
 
       describe 'encryption' do
         it 'calls the salt generation method' do
-          expect(subject).to receive(:generate_sekret_salt)
+          expect(subject).to receive(:generate_sekret_salt).and_call_original
           subject.sekret = 'foobar'
         end
 
@@ -308,13 +311,13 @@ module VCAP::CloudController
           it 'encrypts using the default db_encryption_key' do
             subject.sekret_salt = salt
             subject.sekret = unencrypted_string
-            expect(Encryptor.decrypt(subject.underlying_sekret, subject.sekret_salt, default_key)).to eq(unencrypted_string)
+            expect(Encryptor.decrypt(subject.underlying_sekret, subject.sekret_salt)).to eq(unencrypted_string)
           end
 
           context 'when the record contains an encryption key label' do
             before do
                Encryptor.current_encryption_key_label = 'foo'
-             end
+            end
             it 'encrypts using the key corresponding to the label' do
               subject.sekret_salt = salt
               expect(Encryptor).to receive(:encrypt).with(unencrypted_string, salt).and_call_original
