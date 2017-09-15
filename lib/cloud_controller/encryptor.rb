@@ -117,11 +117,14 @@ module VCAP::CloudController::Encryptor
           else
             if send(:key_label) != VCAP::CloudController::Encryptor.current_encryption_key_label
               send(:db).transaction do
-                self.class.encrypted_fields.each do |field|
-                  if !field[:field_name].eql?(field_name)
-                    send "#{field[:field_name]}_without_encryption=", VCAP::CloudController::Encryptor.encrypt(send(field[:field_name]), send(field[:salt_name]))
-                  else
-                    send "#{field_name}_without_encryption=", VCAP::CloudController::Encryptor.encrypt(value, send(salt_name))
+                e_fields = self.class.encrypted_fields
+                if !e_fields.nil?
+                  self.class.encrypted_fields.each do |field|
+                    if !field[:field_name].eql?(field_name)
+                      send "#{field[:field_name]}_without_encryption=", VCAP::CloudController::Encryptor.encrypt(send(field[:field_name]), send(field[:salt_name]))
+                    else
+                      send "#{field_name}_without_encryption=", VCAP::CloudController::Encryptor.encrypt(value, send(salt_name))
+                    end
                   end
                 end
                 send :key_label=, VCAP::CloudController::Encryptor.current_encryption_key_label
