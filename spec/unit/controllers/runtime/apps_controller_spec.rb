@@ -1688,7 +1688,11 @@ module VCAP::CloudController
     end
 
     describe 'uploading the droplet' do
-      let(:app_obj) { App.make }
+      before do
+        TestConfig.override(directories: { tmpdir: File.dirname(valid_zip.path) })
+      end
+
+      let(:process) { ProcessModel.make }
 
       let(:tmpdir) { Dir.mktmpdir }
       after { FileUtils.rm_rf(tmpdir) }
@@ -1705,19 +1709,19 @@ module VCAP::CloudController
 
         it 'is allowed' do
           set_current_user(User.make, admin: true)
-          put "/v2/apps/#{app_obj.guid}/droplet/upload", req_body
+          put "/v2/apps/#{process.guid}/droplet/upload", req_body
 
           expect(last_response.status).to eq(201)
         end
       end
 
+      let(:user) { make_developer_for_space(process.space) }
       context 'as a developer' do
-        let(:user) { make_developer_for_space(app_obj.space) }
 
         context 'with an empty request' do
           it 'fails to upload' do
             set_current_user(user)
-            put "/v2/apps/#{app_obj.guid}/droplet/upload", {}
+            put "/v2/apps/#{process.guid}/droplet/upload", {}
 
             expect(last_response.status).to eq(400)
             expect(JSON.parse(last_response.body)['description']).to include('missing :droplet_path')
@@ -1730,7 +1734,7 @@ module VCAP::CloudController
           it 'creates a delayed job' do
             set_current_user(user)
             expect {
-              put "/v2/apps/#{app_obj.guid}/droplet/upload", req_body
+              put "/v2/apps/#{process.guid}/droplet/upload", req_body
               expect(last_response.status).to eq 201
             }.to change {
               Delayed::Job.count
@@ -1746,7 +1750,7 @@ module VCAP::CloudController
         let(:req_body) { { droplet: valid_zip } }
 
         it 'returns 403' do
-          put "/v2/apps/#{app_obj.guid}/droplet/upload", req_body
+          put "/v2/apps/#{process.guid}/droplet/upload", req_body
           expect(last_response.status).to eq(403)
         end
       end

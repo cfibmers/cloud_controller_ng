@@ -1025,6 +1025,10 @@ RSpec.describe 'Apps' do
       Rack::Test::UploadedFile.new(zip_file)
     end
 
+    before do
+      TestConfig.config[:directories][:tmpdir] = File.dirname(valid_zip.path)
+    end
+
     it 'uploads the application bits' do
       upload_params = {
         application: valid_zip,
@@ -1067,6 +1071,7 @@ RSpec.describe 'Apps' do
     end
 
     before do
+      TestConfig.config[:directories][:tmpdir] = File.dirname(valid_zip.path)
       upload_params = {
         application: valid_zip,
         resources:   [{ fn: 'a/b/c', size: 1, sha1: 'sha' }].to_json
@@ -1356,10 +1361,7 @@ RSpec.describe 'Apps' do
 
     before do
       TestConfig.config[:nginx][:use_nginx] = false
-    end
-
-    after do
-      TestConfig.config[:nginx][:use_nginx] = true
+      TestConfig.config[:directories][:tmpdir] = File.dirname(valid_zip.path)
     end
 
     it 'uploads the application bits' do
