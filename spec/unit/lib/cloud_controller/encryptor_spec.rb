@@ -38,51 +38,51 @@ module VCAP::CloudController
       end
 
       context 'when database_encryption_keys has been set' do
-         let(:salt) { 'FFFFFFFFFFFFFFFF' }
-         let(:encrypted_death_string) { 'NHQ+mjls1UHJBqpO0KWjTA==' }
-         let(:encrypted_legacy_string) { '1XJDJYNqWOKokyVx0WHZ/g==' }
+        let(:salt) { 'FFFFFFFFFFFFFFFF' }
+        let(:encrypted_death_string) { 'NHQ+mjls1UHJBqpO0KWjTA==' }
+        let(:encrypted_legacy_string) { '1XJDJYNqWOKokyVx0WHZ/g==' }
 
-         before(:each) do
-            Encryptor.db_encryption_key = 'legacy-crypto-key'
-            Encryptor.database_encryption_keys = {
-                'foo' => 'fooencryptionkey',
-                'death' => 'headbangingdeathmetalkey'
-            }
+        before(:each) do
+          Encryptor.db_encryption_key = 'legacy-crypto-key'
+          Encryptor.database_encryption_keys = {
+              'foo' => 'fooencryptionkey',
+              'death' => 'headbangingdeathmetalkey'
+          }
+        end
+
+        context 'when the label is found in the hash' do
+          it 'will encrypt using the value corresponding to the label' do
+            allow(Encryptor).to receive(:current_encryption_key_label) { 'death' }
+            expect(Encryptor.encrypt(input, salt)).to eql(encrypted_death_string)
+          end
+        end
+
+        context 'when the label is not found in the hash' do
+          it 'will encrypt using current db_encryption_key when the label is not nil' do
+            allow(Encryptor).to receive(:current_encryption_key_label) { 'Inigo Montoya' }
+            expect(Encryptor.encrypt(input, salt)).to eql(encrypted_legacy_string)
           end
 
-         context 'when the label is found in the hash' do
-            it 'will encrypt using the value corresponding to the label' do
-               Encryptor.current_encryption_key_label = 'death'
-               expect(Encryptor.encrypt(input, salt)).to eql(encrypted_death_string)
-            end
-         end
-
-         context 'when the label is not found in the hash' do
-            it 'will encrypt using current db_encryption_key when the label is not nil' do
-               Encryptor.current_encryption_key_label = 'Inigo Montoya'
-               expect(Encryptor.encrypt(input, salt)).to eql(encrypted_legacy_string)
-            end
-
-            it 'will encrypt using current db_encryption_key when the label is nil' do
-               Encryptor.current_encryption_key_label = nil
-               expect(Encryptor.encrypt(input, salt)).to eql(encrypted_legacy_string)
-            end
-         end
+          it 'will encrypt using current db_encryption_key when the label is nil' do
+            allow(Encryptor).to receive(:current_encryption_key_label) { nil }
+            expect(Encryptor.encrypt(input, salt)).to eql(encrypted_legacy_string)
+          end
+        end
       end
 
       context 'when database_encryption_keys has not been set' do
-         let(:salt) { 'FFFFFFFFFFFFFFFF' }
-         let(:encrypted_legacy_string) { '1XJDJYNqWOKokyVx0WHZ/g==' }
+        let(:salt) { 'FFFFFFFFFFFFFFFF' }
+        let(:encrypted_legacy_string) { '1XJDJYNqWOKokyVx0WHZ/g==' }
 
-         before(:each) do
-            Encryptor.db_encryption_key = 'legacy-crypto-key'
-            Encryptor.database_encryption_keys = nil
-         end
+        before(:each) do
+          Encryptor.db_encryption_key = 'legacy-crypto-key'
+          Encryptor.database_encryption_keys = nil
+          allow(Encryptor).to receive(:current_encryption_key_label) { 'foo' }
+        end
 
-         it 'will encrypt using db_encryption_key' do
-            Encryptor.current_encryption_key_label = 'foo'
-            expect(Encryptor.encrypt(input, salt)).to eql(encrypted_legacy_string)
-         end
+        it 'will encrypt using db_encryption_key' do
+          expect(Encryptor.encrypt(input, salt)).to eql(encrypted_legacy_string)
+        end
       end
     end
 
@@ -104,7 +104,7 @@ module VCAP::CloudController
 
       context 'when database_encryption_keys is configured' do
         before(:each) do
-          Encryptor.current_encryption_key_label = 'foo'
+          allow(Encryptor).to receive(:current_encryption_key_label) { 'foo' }
           Encryptor.database_encryption_keys = {
               'foo' => 'fooencryptionkey',
               'death' => 'headbangingdeathmetalkey'
@@ -113,7 +113,7 @@ module VCAP::CloudController
 
         context 'when no encryption key label is passed' do
           before(:each) do
-            Encryptor.current_encryption_key_label = nil
+            allow(Encryptor).to receive(:current_encryption_key_label) { nil }
           end
 
           it 'decrypts using #db_encryption_key' do
@@ -133,7 +133,7 @@ module VCAP::CloudController
 
           context 'when the wrong label is passed for decryption' do
             before(:each) do
-               Encryptor.current_encryption_key_label = 'foo'
+              allow(Encryptor).to receive(:current_encryption_key_label) { 'foo' }
             end
             it 'fails to decrypt' do
               encrypted_string = Encryptor.encrypt(unencrypted_string, salt)
@@ -314,48 +314,28 @@ module VCAP::CloudController
             expect(Encryptor.decrypt(subject.underlying_sekret, subject.sekret_salt)).to eq(unencrypted_string)
           end
 
-          context 'when the record contains an encryption key label' do
-            before do
-               Encryptor.current_encryption_key_label = 'foo'
-            end
-            it 'encrypts using the key corresponding to the label' do
-              subject.sekret_salt = salt
-              expect(Encryptor).to receive(:encrypt).with(unencrypted_string, salt).and_call_original
-              subject.sekret = unencrypted_string
-              expect(Encryptor.decrypt(subject.underlying_sekret, salt, 'foo')).to eq(unencrypted_string)
-            end
-          end
 
-          # Table, e.g.:
-          #    ID, Val, [field_]salt, key_label
-
-          # Case 1: key_label1 != key_label2
-          # Case 2: key_label1 == key_label2
-          # Case 3: Enforce not nullable (?)
           context 'model has a value for key_label' do
             let(:columns) { [:sekret, :sekret_salt, :key_label] }
 
             before do
+              allow(Encryptor).to receive(:current_encryption_key_label) { 'foo' }
               subject.sekret_salt = salt
               subject.key_label = 'foo'
               subject.sekret = unencrypted_string
               expect(subject.sekret).to eq(unencrypted_string)
             end
 
-            context 'and a different key is used for encryption' do
-              # IF the new key_label value is not equal to the record's current value
-              # THEN use the record's current key_label to decrypt the entity
-              # THEN use the new key_label value to encrypt the entity
-              # IF encryption succeeds
-              # THEN set the record's key_label field to the new key_label value
-              # ELSE leave record unchanged and return error
-              it 'updates record when the keys are not equal' do
-                # subject.sekret_salt = salt
-                # subject.key_label = 'foo'
-                # subject.sekret = unencrypted_string
+            it 'encrypts using the key corresponding to the label' do
+              subject.sekret_salt = salt
+              expect(Encryptor).to receive(:encrypt).with(unencrypted_string, salt).and_call_original
+              subject.sekret = unencrypted_string
+              expect(Encryptor.decrypt(subject.underlying_sekret, salt, 'foo')).to eq(unencrypted_string)
+            end
 
-
-                Encryptor.current_encryption_key_label = 'bar'
+            context 'and the key has been rotated' do
+              it 'updates key_label in the record when encrypting' do
+                allow(Encryptor).to receive(:current_encryption_key_label) { 'bar' }
                 subject.sekret = 'nu'
                 expect(subject.sekret).to eq('nu')
                 expect(subject.key_label).to eq(Encryptor.current_encryption_key_label)
@@ -381,7 +361,7 @@ module VCAP::CloudController
                 end
 
                 it 'reencrypts that field with the new key' do
-                  Encryptor.current_encryption_key_label = 'bar'
+                  allow(Encryptor).to receive(:current_encryption_key_label) { 'bar' }
                   subject.sekret = 'nu'
                   expect(Encryptor.decrypt(subject.underlying_sekret2, subject.sekret2_salt, 'bar')).to eq(unencrypted_string2)
                 end

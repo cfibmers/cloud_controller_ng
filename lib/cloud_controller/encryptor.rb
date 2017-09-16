@@ -18,7 +18,6 @@ module VCAP::CloudController::Encryptor
     def encrypt(input, salt)
       return nil unless input
 
-      # TODO need a default since current_encryption_key_label is optional
       label = current_encryption_key_label
       key = key_to_use(label)
 
@@ -115,7 +114,7 @@ module VCAP::CloudController::Encryptor
           if value.blank?
             encrypted_value = nil
           else
-            if send(:key_label) != VCAP::CloudController::Encryptor.current_encryption_key_label
+            if !VCAP::CloudController::Encryptor.current_encryption_key_label.nil? && send(:key_label) != VCAP::CloudController::Encryptor.current_encryption_key_label
               send(:db).transaction do
                 e_fields = self.class.encrypted_fields
                 if !e_fields.nil?

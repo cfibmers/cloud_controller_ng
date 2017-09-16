@@ -330,6 +330,10 @@ module VCAP::CloudController
           }
         end
 
+        before do
+          allow(Encryptor).to receive(:current_encryption_key_label=)
+        end
+
         it 'sets up the current encryption key label' do
           expect(Encryptor).to receive(:current_encryption_key_label=).with(keys[:current_key_label])
           Config.configure_components(@test_config.merge(database_encryption_keys: keys))
