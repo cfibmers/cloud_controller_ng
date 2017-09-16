@@ -90,8 +90,8 @@ module VCAP::CloudController
         end
 
         it 'does not set a default for current_encryption_key_label' do
-         expect(config[:current_encryption_key_label]).to eq(nil)
-       end
+          expect(config[:current_encryption_key_label]).to eq(nil)
+        end
       end
 
       context 'when config values are provided' do

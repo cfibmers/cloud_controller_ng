@@ -127,7 +127,7 @@ module VCAP::CloudController
           context 'when no key label is passed for decryption' do
             it 'fails to decrypt' do
               encrypted_string = Encryptor.encrypt(unencrypted_string, salt)
-              expect{ Encryptor.decrypt(encrypted_string, salt) }.to raise_error(/bad decrypt/)
+              expect { Encryptor.decrypt(encrypted_string, salt) }.to raise_error(/bad decrypt/)
             end
           end
 
@@ -137,7 +137,7 @@ module VCAP::CloudController
             end
             it 'fails to decrypt' do
               encrypted_string = Encryptor.encrypt(unencrypted_string, salt)
-              expect{ Encryptor.decrypt(encrypted_string, salt, 'death') }.to raise_error(/bad decrypt/)
+              expect { Encryptor.decrypt(encrypted_string, salt, 'death') }.to raise_error(/bad decrypt/)
             end
           end
 
@@ -216,8 +216,6 @@ module VCAP::CloudController
             expect(klass.instance_methods).to include(:generate_foobar)
           end
         end
-
-
       end
     end
 
@@ -313,7 +311,6 @@ module VCAP::CloudController
             subject.sekret = unencrypted_string
             expect(Encryptor.decrypt(subject.underlying_sekret, subject.sekret_salt)).to eq(unencrypted_string)
           end
-
 
           context 'model has a value for key_label' do
             let(:columns) { [:sekret, :sekret_salt, :key_label] }

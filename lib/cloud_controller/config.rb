@@ -198,8 +198,8 @@ module VCAP::CloudController
         :db_encryption_key => String,
 
         optional(:database_encryption_keys) => {
-            :keys => Hash,
-            :current_key_label => String
+            keys: Hash,
+            current_key_label: String
         },
 
         optional(:flapping_crash_count_threshold) => Integer,
@@ -328,7 +328,7 @@ module VCAP::CloudController
           Encryptor.database_encryption_keys = config[:database_encryption_keys][:keys]
           Encryptor.current_encryption_key_label = config[:database_encryption_keys][:current_key_label]
         else
-          Encryptor.database_encryption_keys = Hash.new()
+          Encryptor.database_encryption_keys = ({})
         end
 
         AccountCapacity.configure(config)

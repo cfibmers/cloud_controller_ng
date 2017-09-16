@@ -3,7 +3,7 @@ require 'openssl'
 require 'openssl/cipher'
 require 'openssl/digest'
 
-#require 'openssl/ossl'
+# require 'openssl/ossl'
 require 'base64'
 
 module VCAP::CloudController::Encryptor
@@ -47,7 +47,7 @@ module VCAP::CloudController::Encryptor
         return db_encryption_key
       end
 
-      return database_encryption_keys[label]
+      database_encryption_keys[label]
     end
 
     def make_cipher
@@ -134,7 +134,6 @@ module VCAP::CloudController::Encryptor
               send "#{field_name}_without_encryption=", encrypted_value
             end
           end
-
         end
         alias_method_chain "#{field_name}=", 'encryption'
       end

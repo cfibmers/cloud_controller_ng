@@ -2,9 +2,9 @@ Sequel.migration do
   up do
     if supports_table_listing?
       tables.each do |table|
-         alter_table(table) do
-            add_column :key_label, String
-         end
+        alter_table(table) do
+          add_column :key_label, String
+        end
       end
     end
   end
@@ -12,9 +12,9 @@ Sequel.migration do
   down do
     if supports_table_listing?
       tables.each do |table|
-         alter_table(table) do
-            drop_column :key_label
-         end
+        alter_table(table) do
+          drop_column :key_label
+        end
       end
     end
   end
