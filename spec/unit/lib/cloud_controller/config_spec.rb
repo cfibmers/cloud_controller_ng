@@ -40,9 +40,9 @@ module VCAP::CloudController
           stacks_file: 'path/to/stacks/file',
           db_encryption_key: '123-456',
           install_buildpacks: [
-              {
-                  name: 'some-buildpack',
-              }
+            {
+                name: 'some-buildpack',
+            }
           ]
       }
     }
@@ -62,16 +62,16 @@ module VCAP::CloudController
         context 'when no config values are provided' do
           let(:null_overrides) do
             [
-                'bits_service',
-                'stacks_file',
-                'directories',
-                'request_timeout_in_seconds',
-                'skip_cert_verify',
-                'app_bits_upload_grace_period_in_seconds',
-                'allowed_cors_domains',
-                'users_can_select_backend',
-                'broker_client_timeout_seconds',
-                'broker_client_default_async_poll_interval_seconds',
+              'bits_service',
+              'stacks_file',
+              'directories',
+              'request_timeout_in_seconds',
+              'skip_cert_verify',
+              'app_bits_upload_grace_period_in_seconds',
+              'allowed_cors_domains',
+              'users_can_select_backend',
+              'broker_client_timeout_seconds',
+              'broker_client_default_async_poll_interval_seconds',
             ]
           end
 
