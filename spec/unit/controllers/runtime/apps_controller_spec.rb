@@ -2186,6 +2186,50 @@ module VCAP::CloudController
         end
       end
 
+      context 'when the quota is exceeded' do
+        let(:quota) { QuotaDefinition.make(memory_limit: 0) }
+        let(:org) { Organization.make(quota_definition: quota) }
+        let(:space_quota) { SpaceQuotaDefinition.make(memory_limit: 4096, organization: org) }
+        let(:space) { Space.make(name: 'hi', organization: org, space_quota_definition: space_quota) }
+        let(:parent_app) { AppModel.make(space: space) }
+        let(:process) { ProcessModelFactory.make(app: parent_app, memory: 64, instances: 1) }
+
+        before do
+          set_current_user(make_developer_for_space(space))
+        end
+
+        context 'org quota is exceeded' do
+          it 'should add the route to the app' do
+            put "/v2/apps/#{process.guid}/routes/#{route.guid}", nil
+            expect(last_response).to have_status_code(201)
+          end
+
+          it 'should not raise an error' do
+            put "/v2/apps/#{process.guid}/routes/#{route.guid}", nil
+            expect(last_response).to_not raise_error
+          end
+        end
+
+        context 'space quota is exceeded' do
+          before do
+            quota.memory_limit = 128
+            space_quota.memory_limit = 0
+            quota.save
+            space_quota.save
+          end
+
+          it 'should add the route to the app' do
+            put "/v2/apps/#{process.guid}/routes/#{route.guid}", nil
+            expect(last_response).to have_status_code(201)
+          end
+
+          it 'should not raise an error' do
+            put "/v2/apps/#{process.guid}/routes/#{route.guid}", nil
+            expect(last_response).to_not raise_error
+          end
+        end
+      end
+
       describe 'routes from tcp router groups' do
         let(:domain) { SharedDomain.make(name: 'tcp.com', router_group_guid: 'router-group-guid') }
         let(:route) { Route.make(space: process.space, domain: domain, port: 9090, host: '') }

@@ -139,6 +139,51 @@ module VCAP::CloudController
           expect(app.reload.routes).to be_empty
         end
       end
+
+      context 'when quota is exceeded' do
+        let(:quota) { QuotaDefinition.make(memory_limit: 0) }
+        let(:org) { Organization.make(quota_definition: quota) }
+        let(:space_quota) { SpaceQuotaDefinition.make(memory_limit: 4096, organization: org) }
+        let(:space) { Space.make(name: 'hi', organization: org, space_quota_definition: space_quota) }
+        let(:parent_app) { AppModel.make(space: space) }
+        let(:process) { ProcessModelFactory.make(app: parent_app, memory: 64, instances: 1) }
+        let(:message) { RouteMappingsCreateMessage.new(relationships: { process: process }) }
+
+        context 'when org quota is exceeded' do
+          it 'should create the route mapping successfully' do
+            expect do
+              route_mapping = route_mapping_create.add(message)
+              expect(route_mapping.route.guid).to eq(route.guid)
+              expect(route_mapping.process.guid).to eq(process.guid)
+            end.to_not raise_error
+          end
+
+          it 'should not raise an error' do
+            expect { route_mapping_create.add(message) }.to_not raise_error
+          end
+        end
+
+        context 'when space quota is exceeded' do
+          before do
+            quota.memory_limit = 128
+            space_quota.memory_limit = 0
+            quota.save
+            space_quota.save
+          end
+
+          it 'should create the route mapping successfully' do
+            expect do
+              route_mapping = route_mapping_create.add(message)
+              expect(route_mapping.route.guid).to eq(route.guid)
+              expect(route_mapping.process.guid).to eq(process.guid)
+            end.to_not raise_error
+          end
+
+          it 'should not raise an error' do
+            expect { route_mapping_create.add(message) }.to_not raise_error
+          end
+        end
+      end
     end
   end
 end

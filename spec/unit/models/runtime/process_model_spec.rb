@@ -145,7 +145,6 @@ module VCAP::CloudController
         expect_validator(MinDiskQuotaPolicy)
         expect_validator(MetadataPolicy)
         expect_validator(MinMemoryPolicy)
-        expect_validator(AppMaxInstanceMemoryPolicy)
         expect_validator(InstancesPolicy)
         expect_validator(HealthCheckPolicy)
         expect_validator(DockerPolicy)
@@ -155,16 +154,6 @@ module VCAP::CloudController
         subject(:process) { ProcessModelFactory.make(app: parent_app) }
         let(:org) { Organization.make }
         let(:space) { Space.make(organization: org, space_quota_definition: SpaceQuotaDefinition.make(organization: org)) }
-
-        it 'validates org and space using MaxMemoryPolicy' do
-          max_memory_policies = process.validation_policies.select { |policy| policy.instance_of? AppMaxMemoryPolicy }
-          expect(max_memory_policies.length).to eq(2)
-        end
-
-        it 'validates org and space using MaxInstanceMemoryPolicy' do
-          max_instance_memory_policies = process.validation_policies.select { |policy| policy.instance_of? AppMaxInstanceMemoryPolicy }
-          expect(max_instance_memory_policies.length).to eq(2)
-        end
 
         it 'validates org and space using MaxAppInstancesPolicy' do
           max_app_instances_policy = process.validation_policies.select { |policy| policy.instance_of? MaxAppInstancesPolicy }
@@ -355,38 +344,6 @@ module VCAP::CloudController
           let(:parent_app) { AppModel.make(space: space) }
           subject!(:process) { ProcessModelFactory.make(app: parent_app, memory: 64, instances: 2, state: 'STARTED') }
 
-          it 'should raise error when quota is exceeded' do
-            process.memory = 65
-            expect { process.save }.to raise_error(/quota_exceeded/)
-          end
-
-          it 'should not raise error when quota is not exceeded' do
-            process.memory = 63
-            expect { process.save }.to_not raise_error
-          end
-
-          it 'can delete an app that somehow has exceeded its memory quota' do
-            quota.memory_limit = 32
-            quota.save
-            process.memory = 100
-            process.save(validate: false)
-            expect(process.reload).to_not be_valid
-            expect { process.delete }.not_to raise_error
-          end
-
-          it 'allows scaling down instances of an app from above quota to below quota' do
-            org.quota_definition = QuotaDefinition.make(memory_limit: 72)
-            act_as_cf_admin { org.save }
-
-            expect(process.reload).to_not be_valid
-            process.instances = 1
-
-            process.save
-
-            expect(process.reload).to be_valid
-            expect(process.instances).to eq(1)
-          end
-
           it 'should raise error when instance quota is exceeded' do
             quota.app_instance_limit = 4
             quota.memory_limit       = 512
@@ -405,42 +362,6 @@ module VCAP::CloudController
 
             process.instances = 5
             expect { process.save }.to raise_error(/instance_limit_exceeded/)
-          end
-
-          it 'raises when scaling down number of instances but remaining above quota' do
-            org.quota_definition = QuotaDefinition.make(memory_limit: 32)
-            act_as_cf_admin { org.save }
-
-            process.reload
-            process.instances = 1
-
-            expect { process.save }.to raise_error(Sequel::ValidationFailed, /quota_exceeded/)
-            process.reload
-            expect(process.instances).to eq(2)
-          end
-
-          it 'allows stopping an app that is above quota' do
-            org.quota_definition = QuotaDefinition.make(memory_limit: 72)
-            act_as_cf_admin { org.save }
-
-            expect(process.reload).to be_started
-
-            process.state = 'STOPPED'
-            process.save
-
-            expect(process).to be_stopped
-          end
-
-          it 'allows reducing memory from above quota to at/below quota' do
-            org.quota_definition = QuotaDefinition.make(memory_limit: 64)
-            act_as_cf_admin { org.save }
-
-            process.memory = 40
-            expect { process.save }.to raise_error(Sequel::ValidationFailed, /quota_exceeded/)
-
-            process.memory = 32
-            process.save
-            expect(process.memory).to eq(32)
           end
         end
       end
